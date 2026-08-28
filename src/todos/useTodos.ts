@@ -9,9 +9,9 @@ let nextId = 0;
 export function useTodos() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
 
-  const addTodo = useCallback(({text, stickerPath}: Capture) => {
+  const addTodo = useCallback((capture: Capture) => {
     nextId += 1;
-    setTodos(prev => [...prev, {id: String(nextId), text, stickerPath}]);
+    setTodos(prev => [...prev, {id: String(nextId), ...capture}]);
   }, []);
 
   return {todos, addTodo};

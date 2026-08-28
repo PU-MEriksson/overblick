@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {PluginManager, PluginCommAPI, FileUtils} from 'sn-plugin-lib';
+import type {Rect} from 'sn-plugin-lib';
 import type {ApiResponse, Capture} from '../types';
 
 // Matches the "Lasso Button" registered in index.js (type 2 = lasso toolbar button).
@@ -57,6 +58,31 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
       return stickerRes?.success && stickerRes.result ? stickerPath : null;
     };
 
+    // Best-effort, same as the sticker: which note/page/rect this capture came
+    // from isn't used yet, but later work (persisting into the note, drawing a
+    // synced checkbox) will need it, so we record it now rather than lose it.
+    const captureLocation = async (): Promise<{
+      notePath: string | null;
+      page: number | null;
+      rect: Rect | null;
+    }> => {
+      const [pathRes, pageRes, rectRes] = (await Promise.all([
+        PluginCommAPI.getCurrentFilePath(),
+        PluginCommAPI.getCurrentPageNum(),
+        PluginCommAPI.getLassoRect(),
+      ])) as [
+        ApiResponse<string> | null | undefined,
+        ApiResponse<number> | null | undefined,
+        ApiResponse<Rect> | null | undefined,
+      ];
+
+      return {
+        notePath: pathRes?.success ? pathRes.result ?? null : null,
+        page: pageRes?.success ? pageRes.result ?? null : null,
+        rect: rectRes?.success ? rectRes.result ?? null : null,
+      };
+    };
+
     const handleLassoButtonPress = async () => {
       setStatus('loading');
       setErrorMessage('');
@@ -100,9 +126,12 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
         return;
       }
 
-      const stickerPath = await saveInkSnapshot();
+      const [stickerPath, location] = await Promise.all([
+        saveInkSnapshot(),
+        captureLocation(),
+      ]);
 
-      onCaptured({text: textRes.result ?? '', stickerPath});
+      onCaptured({text: textRes.result ?? '', stickerPath, ...location});
       setStatus('idle');
     };
 
