@@ -1,22 +1,62 @@
-import {useEffect, useState} from 'react';
-import {PluginManager, PluginCommAPI} from 'sn-plugin-lib';
-import type {ApiResponse} from '../types';
+import {useEffect, useRef, useState} from 'react';
+import {PluginManager, PluginCommAPI, FileUtils} from 'sn-plugin-lib';
+import type {ApiResponse, Capture} from '../types';
 
 // Matches the "Lasso Button" registered in index.js (type 2 = lasso toolbar button).
 const LASSO_BUTTON_ID = 200;
+const STICKERS_DIR_NAME = 'stickers';
 
 type Status = 'idle' | 'loading' | 'error';
 
 /**
  * Listens for the Lasso Button and, on each press, fetches the current lasso
- * selection and OCRs it. Recognized text is handed to `onCaptured` — this hook
- * only reports capture status, it doesn't own where the text ends up.
+ * selection, OCRs it, and saves a snapshot of the original ink. The capture is
+ * handed to `onCaptured` — this hook only reports capture status, it doesn't
+ * own where the capture ends up.
  */
-export function useLassoCapture(onCaptured: (text: string) => void) {
+export function useLassoCapture(onCaptured: (capture: Capture) => void) {
   const [status, setStatus] = useState<Status>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  // Caches the stickers directory path across captures so we only hit the
+  // filesystem to create it once per plugin session, not on every capture.
+  const stickersDirRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const ensureStickersDir = async (): Promise<string | null> => {
+      if (stickersDirRef.current) {
+        return stickersDirRef.current;
+      }
+      const pluginDir = await PluginManager.getPluginDirPath();
+      if (!pluginDir) {
+        return null;
+      }
+      const dir = `${pluginDir}/${STICKERS_DIR_NAME}`;
+      if (!(await FileUtils.exists(dir))) {
+        const made = await FileUtils.makeDir(dir);
+        if (!made) {
+          return null;
+        }
+      }
+      stickersDirRef.current = dir;
+      return dir;
+    };
+
+    // Best-effort: saving the ink snapshot is separate from OCR, so a failure
+    // here shouldn't lose the recognized text.
+    const saveInkSnapshot = async (): Promise<string | null> => {
+      const dir = await ensureStickersDir();
+      if (!dir) {
+        return null;
+      }
+
+      // Must be a `.sticker` path, not `.png` — see docs/api-notes.md.
+      const stickerPath = `${dir}/${Date.now()}.sticker`;
+      const stickerRes = (await PluginCommAPI.saveStickerByLasso(
+        stickerPath,
+      )) as ApiResponse<boolean> | null | undefined;
+      return stickerRes?.success && stickerRes.result ? stickerPath : null;
+    };
+
     const handleLassoButtonPress = async () => {
       setStatus('loading');
       setErrorMessage('');
@@ -41,7 +81,9 @@ export function useLassoCapture(onCaptured: (text: string) => void) {
         | null
         | undefined;
       if (!sizeRes?.success || !sizeRes.result) {
-        setErrorMessage(sizeRes?.error?.message ?? 'Could not read the page size.');
+        setErrorMessage(
+          sizeRes?.error?.message ?? 'Could not read the page size.',
+        );
         setStatus('error');
         return;
       }
@@ -51,12 +93,16 @@ export function useLassoCapture(onCaptured: (text: string) => void) {
         sizeRes.result,
       )) as ApiResponse<string> | null | undefined;
       if (!textRes?.success) {
-        setErrorMessage(textRes?.error?.message ?? 'Handwriting recognition failed.');
+        setErrorMessage(
+          textRes?.error?.message ?? 'Handwriting recognition failed.',
+        );
         setStatus('error');
         return;
       }
 
-      onCaptured(textRes.result ?? '');
+      const stickerPath = await saveInkSnapshot();
+
+      onCaptured({text: textRes.result ?? '', stickerPath});
       setStatus('idle');
     };
 
