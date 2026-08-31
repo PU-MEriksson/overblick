@@ -1,18 +1,71 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import type {Capture, TodoItem} from '../types';
+import {loadTodos, saveTodos} from './todoStorage';
 
-// In-memory only for now — resets when the plugin view closes. A simple
-// incrementing counter is fine as an id source since there's no persistence
-// to worry about colliding with yet.
-let nextId = 0;
+// Ids have to stay unique across sessions now that the list is persisted — the
+// old per-session counter restarted at 1 every launch and would have collided
+// with ids already saved to disk. The counter only breaks ties between two
+// captures made within the same millisecond.
+let counter = 0;
+
+function createId(): string {
+  counter += 1;
+  return `${Date.now()}-${counter}`;
+}
+
+type Status = 'loading' | 'ready' | 'error';
 
 export function useTodos() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [status, setStatus] = useState<Status>('loading');
+  const [errorMessage, setErrorMessage] = useState('');
+  // Guards the save effect below so it can't fire before the first read
+  // finishes — otherwise the initial empty state would overwrite saved todos.
+  const hasLoaded = useRef(false);
 
-  const addTodo = useCallback((capture: Capture) => {
-    nextId += 1;
-    setTodos(prev => [...prev, {id: String(nextId), ...capture}]);
+  useEffect(() => {
+    let cancelled = false;
+
+    loadTodos()
+      .then(loaded => {
+        if (cancelled) {
+          return;
+        }
+        setTodos(loaded);
+        hasLoaded.current = true;
+        setStatus('ready');
+      })
+      .catch((error: Error) => {
+        if (cancelled) {
+          return;
+        }
+        // `hasLoaded` deliberately stays false: if we couldn't read what's
+        // stored, we must not write over it.
+        setErrorMessage(error.message || 'Could not read the saved todo list.');
+        setStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  return {todos, addTodo};
+  // Saves the whole list on every change. The list is small enough that
+  // rewriting all of it is cheaper than tracking which item changed. This also
+  // runs once right after loading, harmlessly writing back what we just read.
+  useEffect(() => {
+    if (!hasLoaded.current) {
+      return;
+    }
+    saveTodos(todos).catch((error: Error) => {
+      setErrorMessage(error.message || 'Could not save the todo list.');
+      setStatus('error');
+    });
+  }, [todos]);
+
+  const addTodo = useCallback((capture: Capture) => {
+    setTodos(prev => [...prev, {id: createId(), ...capture}]);
+  }, []);
+
+  return {todos, addTodo, status, errorMessage};
 }

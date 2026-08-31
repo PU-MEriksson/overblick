@@ -25,14 +25,31 @@ import {TodoList} from './src/todos/TodoList';
  */
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
-  const {todos, addTodo} = useTodos();
-  const {status, errorMessage} = useLassoCapture(addTodo);
+  const {
+    todos,
+    addTodo,
+    status: storageStatus,
+    errorMessage: storageError,
+  } = useTodos();
+  const {status: captureStatus, errorMessage: captureError} =
+    useLassoCapture(addTodo);
 
   const handleClose = () => {
     PluginManager.closePluginView();
   };
 
   const textColor = {color: isDarkMode ? '#ffffff' : '#000000'};
+
+  // Reading the saved list has to finish before the list means anything, and a
+  // storage failure hides any capture error behind it — there's nowhere to put
+  // a new capture until storage works again.
+  const isBusy = storageStatus === 'loading' || captureStatus === 'loading';
+  const failure =
+    storageStatus === 'error'
+      ? storageError
+      : captureStatus === 'error'
+      ? captureError
+      : '';
 
   return (
     <View style={styles.container}>
@@ -43,17 +60,19 @@ function App(): React.JSX.Element {
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={isDarkMode ? '#000000' : '#ffffff'}
       />
-      {status === 'loading' && (
+      {isBusy && (
         <View style={styles.centered}>
           <ActivityIndicator size="large" />
         </View>
       )}
-      {status === 'error' && (
+      {!isBusy && failure !== '' && (
         <View style={styles.centered}>
-          <Text style={[styles.errorText, textColor]}>{errorMessage}</Text>
+          <Text style={[styles.errorText, textColor]}>{failure}</Text>
         </View>
       )}
-      {status === 'idle' && <TodoList todos={todos} textColor={textColor} />}
+      {!isBusy && failure === '' && (
+        <TodoList todos={todos} textColor={textColor} />
+      )}
     </View>
   );
 }

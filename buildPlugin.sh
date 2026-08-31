@@ -120,8 +120,13 @@ is_ignored_module_name() {
     case "$lower" in
         react-native|react|sn-plugin-lib) return 0 ;;
     esac
-    [[ "$lower" == @react-native* ]] && return 0
-    [[ "$lower" == @react-navigation* ]] && return 0
+    # Match React Native's own scopes exactly. A bare `@react-native*` glob also
+    # swallows unrelated third-party modules that merely start with the same
+    # letters — e.g. `@react-native-async-storage/async-storage` — which silently
+    # skips the native build. See docs/api-notes.md.
+    [[ "$lower" == @react-native/* ]] && return 0
+    [[ "$lower" == @react-native-community/* ]] && return 0
+    [[ "$lower" == @react-navigation/* ]] && return 0
     return 1
 }
 
