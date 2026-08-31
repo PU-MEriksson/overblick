@@ -35,10 +35,15 @@ Working end-to-end on-device, in `src/`:
   2026-08-31: todos survive both a device restart and a plugin uninstall/reinstall.
 - **Milestone step 3 (list of todos as text):** done. `src/todos/TodoList.tsx` renders the
   list, which now loads from storage when the plugin opens.
-- **Milestone step 4 (synced checkbox on the page):** not started. There is no dedicated
-  "checkbox" element type in the SDK, so this needs real design work, not just wiring. It will
-  also need `PluginManager.requestPermission('plugin.permission.FILE:WRITE')` — writing into a
-  note file is permissioned, unlike the plugin's own storage.
+- **Milestone step 4 (synced checkbox on the page):** not started, and the one step that needs
+  real design work rather than wiring. Settled 2026-08-31: the checkbox must be **drawn by us**.
+  Supernote's own to-do feature only produces a link visible inside the to-do app — the note page
+  gets no visual mark — so it can't stand in for the checkbox (confirmed on-device; see
+  `docs/api-notes.md`). There's no checkbox element type and not even a rectangle primitive, so
+  a box is a polygon, straight lines, or an inserted sticker. Writing into a note also needs
+  `PluginManager.requestPermission('plugin.permission.FILE:WRITE')`, unlike the plugin's own
+  storage. The hard part is anchoring: elements are addressed by index within a page, so keeping
+  a checkbox tied to its todo across page edits is the problem to solve first.
 
 **Next planned step:** milestone step 4.
 

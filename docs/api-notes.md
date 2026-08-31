@@ -108,6 +108,42 @@ docs.supernote.com alone. Append here as we discover more — don't rediscover t
   Some community plugins (ink2task) reference one for patching `react-native-sqlite-storage` —
   that is their own fork of the build script, not stock tooling.
 
+## Supernote's native "to-do" can't serve as the on-page checkbox
+
+- The SDK hints at a native to-do concept: `LassoElementTypeNum.todoLinkNum` counts "todo links"
+  inside a lasso, and `Link` carries an undocumented `linkType: number`. That looked like it
+  might give us milestone step 4 for free.
+- It doesn't. Confirmed on-device 2026-08-31 by Malin: adding selected text to the native to-do
+  produces a **link back to the note, visible only inside the to-do app**. The note page itself
+  gets **no visual indication** that the text is now a to-do.
+- Milestone step 4 needs a mark *on the page*, so the checkbox has to be drawn ourselves. Don't
+  re-investigate `linkType` hoping for a shortcut — the feature exists, it just renders in the
+  wrong place.
+- For jumping from our list back to the source note we don't need links anyway:
+  `PluginFileAPI.openFile(filePath, page)` does exactly that, and we already store
+  `notePath`/`page` on every `TodoItem`.
+
+## Drawing on a page: what's actually available
+
+Not yet used — collected while scoping milestone step 4.
+
+- Element types (`Element` / `ElementType` in `model/Element.d.ts`): `TYPE_STROKE` 0,
+  `TYPE_TITLE` 100, `TYPE_PICTURE` 200, `TYPE_TEXT` 500, `TYPE_LINK` 600, `TYPE_GEO` 700,
+  `TYPE_FIVE_STAR` 800. There is no checkbox type — consistent with the finding above.
+- `Geometry` supports only `straightLine`, `GEO_circle`, `GEO_ellipse`, `GEO_polygon` — **no
+  rectangle primitive**. A square checkbox would be a polygon, four straight lines, or an
+  inserted `.sticker`/picture.
+- Insert/modify/delete: `PluginCommAPI.insertPageElements` / `modifyPageElements` /
+  `deletePageElements` / `batchUpdatePageElements` (each takes an optional layer), and the
+  `PluginFileAPI` equivalents that take an explicit `notePath`. Writing to a note needs
+  `FILE:WRITE` — see the permission section above.
+- Open question for step 4's design: elements are addressed by **index within the page**
+  (`numsInPage`, `getElement(notePath, page, num)` — "starting from 1"). Whether those indices
+  stay stable when the user edits the page around our checkbox is unverified, and it's the crux
+  of keeping a checkbox tied to its todo. `searchFiveStars(filePath)` suggests the device solves
+  the same "find my marks again" problem for five-star marks by scanning — worth studying as a
+  precedent before inventing an anchoring scheme.
+
 ## The native build needs JDK 21 — Android Studio's bundled JDK is too new
 
 - `./buildPlugin.sh` only invokes Gradle when a native module is present, so this doesn't bite
