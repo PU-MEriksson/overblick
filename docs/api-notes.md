@@ -122,6 +122,15 @@ docs.supernote.com alone. Append here as we discover more — don't rediscover t
   `JAVA_HOME=/opt/homebrew/opt/openjdk@21 ANDROID_HOME=$HOME/Library/Android/sdk ./buildPlugin.sh`
 - There is no `android/local.properties` in this repo, so `ANDROID_HOME` must be set in the
   environment (or the file created) for Gradle to find the SDK.
+- **A Gradle failure does not fail the build.** In `main()`, `build_android_apk` is called inside
+  an `if`, so when Gradle can't run the script prints "APK build failed" in red and then carries
+  on to zip the package anyway — producing a `.snplg` with no `app.npk` and no
+  `nativeCodePackage`. Same silent outcome as the glob bug above, different cause. Treat
+  `build/generated/PluginConfig.json` as the thing to check, not the script's exit.
+- Set up here 2026-08-31 in `~/.zshrc` (`JAVA_HOME`, `ANDROID_HOME`, and JDK 21 on `PATH`), so
+  `./buildPlugin.sh` needs no prefix. Worth knowing if this ever breaks again: the machine's
+  original Android/Java exports live in `~/.bash_profile`, which **zsh never reads** — that file
+  is a decoy.
 
 ## AsyncStorage survives both device restart and plugin reinstall
 

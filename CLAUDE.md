@@ -61,12 +61,14 @@ Two different workflows — don't conflate them:
   generates `PluginConfig.json` on first run, builds any native Android code into the package,
   and zips it into `build/outputs/<package.json name>.snplg` (e.g. `overblick.snplg`).
   Since AsyncStorage was added the project contains native code, so **every** package build now
-  runs Gradle and needs a JDK and the Android SDK on hand:
-  `JAVA_HOME=/opt/homebrew/opt/openjdk@21 ANDROID_HOME=$HOME/Library/Android/sdk ./buildPlugin.sh`
-  JDK 21 specifically — Android Studio's bundled JDK 25 fails with a misleading error. After
-  adding any new native dependency, regenerate the autolinking list first
-  (`cd android && ./gradlew :app:generateAutolinkingPackageList`) or the package is silently
-  left out. Both traps are written up in `docs/api-notes.md`.
+  runs Gradle, which needs `JAVA_HOME` (JDK **21** — Android Studio's bundled JDK 25 is too new
+  and fails with a misleading error) and `ANDROID_HOME`. Both are exported from `~/.zshrc`, so
+  `./buildPlugin.sh` takes no prefix. Watch out: if Gradle can't run, the script prints
+  "APK build failed" in red and **still writes a `.snplg`** — one with no native code in it. So
+  check `build/generated/PluginConfig.json` for `nativeCodePackage` before installing rather
+  than trusting that the script finished. After adding any new native dependency, regenerate the
+  autolinking list first (`cd android && ./gradlew :app:generateAutolinkingPackageList`) or the
+  new package is silently left out. All of this is written up in `docs/api-notes.md`.
 - **Install on device:** copy the `.snplg` file to the Supernote's `MyStyle` folder, then on the
   device go to Settings → Apps → Plugins → Add Plugin and select it.
 
