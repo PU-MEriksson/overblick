@@ -6,5 +6,9 @@
   "versionCode": "1",
   "pluginID": "viczz61591z3ubbj",
   "pluginKey": "overblick",
-  "jsMainPath": "index"
+  "jsMainPath": "index",
+  "uses-permissions": [
+    "plugin.permission.FILE:READ",
+    "plugin.permission.FILE:WRITE"
+  ]
 }

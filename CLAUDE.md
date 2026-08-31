@@ -45,7 +45,13 @@ Working end-to-end on-device, in `src/`:
   storage. The hard part is anchoring: elements are addressed by index within a page, so keeping
   a checkbox tied to its todo across page edits is the problem to solve first.
 
-**Next planned step:** milestone step 4.
+**Next planned step:** milestone step 4. A spike is in progress in `src/probe/AnchorProbe.tsx`
+(temporary, shown instead of the todo list via `SHOW_ANCHOR_PROBE` in `App.tsx`; delete both when
+done). Drawing a shape into a note now works end-to-end — see "Drawing a shape on a page" in
+`docs/api-notes.md` for the recipe, especially that `Geometry.points` are screen pixels rather
+than EMR. **The anchoring question itself is still open:** insert a `userData`-tagged element,
+close and reopen the note, and read back to see whether the tag survives. That answers whether a
+checkbox can be found again by content or has to rely on a positional index.
 
 **Deferred by decision, not oversight:** planned dates, today/this week/this month, and an
 "important" flag are wanted eventually, but stay out of scope until the milestone is finished.

@@ -66,6 +66,40 @@ docs.supernote.com alone. Append here as we discover more — don't rediscover t
   the matching permission. Paths outside both sets are unreachable regardless of permissions.
 - `FILE:WRITE` also covers *modifying note content* — including element deletion. Relevant to
   the future "draw a checkbox into the note" work, which will need to request it.
+- **Reading a note's contents needs `FILE:READ`, and it is not optional.** Confirmed on-device
+  2026-08-31: with no permissions granted, `getPageSize`, `getNoteType` and `getElementNumList`
+  all fail with `success: false`, `error.code: 1503`,
+  `message: "File read permission has not been requested"`. Notes live in shared `Note/` storage,
+  so every file-scoped call is gated — reads included, not just writes.
+- Which calls are *not* gated is the useful distinction: anything scoped to the current view or
+  selection works with no permission at all. `getCurrentFilePath`, `getCurrentPageNum`,
+  `getPageDisplaySize`, `getLassoElements`, `recognizeElements` and `saveStickerByLasso` all
+  succeed unpermissioned — which is why the whole lasso capture feature never needed a permission
+  prompt. The moment we address a note *by path*, `FILE:READ` becomes mandatory.
+- Practical consequence: request `FILE:READ` **before** `FILE:WRITE`. Without read, file-scoped
+  calls fail at 1503 long before any write is attempted, which makes a missing read permission
+  look like a broken write.
+- **Permissions must be DECLARED in `PluginConfig.json` before they can be requested.** This is
+  the step that isn't obvious from `PluginManager`'s types at all — `requestPermission` looks
+  self-contained, but calling it for an undeclared permission **throws**
+  `"This permission has not been declared"` (confirmed on-device 2026-08-31; the docs describe it
+  as error 1500). It throws rather than returning a failed `APIResponse`, so an un-caught call
+  looks like a dead button.
+- The declaration field is `uses-permissions`, a string array, in the **root**
+  `PluginConfig.json`:
+  ```json
+  "uses-permissions": [
+    "plugin.permission.FILE:READ",
+    "plugin.permission.FILE:WRITE"
+  ]
+  ```
+  `buildPlugin.sh` copies the root config into `build/generated/` wholesale before adding
+  `iconPath`/`reactPackages`/`nativeCodePackage`, so extra fields carry through untouched.
+- Full flow, in order: declare in `PluginConfig.json` → `hasPermission()` to check →
+  `requestPermission()` to prompt the user → then call the file-scoped API. Skipping the
+  declaration fails at step 3; skipping the request fails at step 4 with 1503.
+- Deleting *elements* inside a note is validated against `FILE:WRITE`, not `FILE:DELETE` —
+  `FILE:DELETE` is about deleting files in shared storage. We don't need it.
 - Still unverified: whether files under `getPluginDirPath()` survive a plugin
   uninstall/reinstall. Note this is a *separate* question from AsyncStorage's durability (see
   below) — AsyncStorage writes to the host app's storage, the plugin dir belongs to the plugin.
@@ -123,26 +157,71 @@ docs.supernote.com alone. Append here as we discover more — don't rediscover t
   `PluginFileAPI.openFile(filePath, page)` does exactly that, and we already store
   `notePath`/`page` on every `TodoItem`.
 
-## Drawing on a page: what's actually available
+## Drawing a shape on a page — the working recipe
 
-Not yet used — collected while scoping milestone step 4.
+Established on-device 2026-08-31 via `src/probe/AnchorProbe.tsx`. Almost none of this is in the
+docs, and several parts contradict what the docs imply.
 
-- Element types (`Element` / `ElementType` in `model/Element.d.ts`): `TYPE_STROKE` 0,
-  `TYPE_TITLE` 100, `TYPE_PICTURE` 200, `TYPE_TEXT` 500, `TYPE_LINK` 600, `TYPE_GEO` 700,
-  `TYPE_FIVE_STAR` 800. There is no checkbox type — consistent with the finding above.
-- `Geometry` supports only `straightLine`, `GEO_circle`, `GEO_ellipse`, `GEO_polygon` — **no
-  rectangle primitive**. A square checkbox would be a polygon, four straight lines, or an
-  inserted `.sticker`/picture.
-- Insert/modify/delete: `PluginCommAPI.insertPageElements` / `modifyPageElements` /
-  `deletePageElements` / `batchUpdatePageElements` (each takes an optional layer), and the
-  `PluginFileAPI` equivalents that take an explicit `notePath`. Writing to a note needs
-  `FILE:WRITE` — see the permission section above.
-- Open question for step 4's design: elements are addressed by **index within the page**
-  (`numsInPage`, `getElement(notePath, page, num)` — "starting from 1"). Whether those indices
-  stay stable when the user edits the page around our checkbox is unverified, and it's the crux
-  of keeping a checkbox tied to its todo. `searchFiveStars(filePath)` suggests the device solves
-  the same "find my marks again" problem for five-star marks by scanning — worth studying as a
-  precedent before inventing an anchoring scheme.
+- Element types (`Element` / `ElementType`): `TYPE_STROKE` 0, `TYPE_TITLE` 100, `TYPE_PICTURE`
+  200, `TYPE_TEXT` 500, `TYPE_LINK` 600, `TYPE_GEO` 700, `TYPE_FIVE_STAR` 800. No checkbox type.
+- `Geometry` supports `straightLine`, `GEO_circle`, `GEO_ellipse`, `GEO_polygon` — no rectangle
+  primitive. **`GEO_polygon` renders correctly when inserted by a plugin**, so a checkbox can be
+  a single element. (Worth noting because the Nomad's own shape tool only offers straight lines,
+  which made polygons look unproven.)
+
+### `Geometry.points` are SCREEN PIXELS, not EMR
+
+The single most expensive thing we got wrong. `Element.maxX`/`maxY` are documented as being "in
+the EMR coordinate system", and it is tempting to assume geometry points match. **They do not.**
+
+- Geometry points are page/screen pixels — on the Nomad, a 1404 x 1872 space.
+- A straight line drawn with the device's own shape tool dumped as
+  `[{x:259,y:874},{x:986,y:874}]` — plainly pixels, not the ~15819 EMR range.
+- `PointUtils.androidPoint2Emr` is for a *different* job. Note it also rotates and flips
+  (`srcPoint = {x: point.y, y: pageSize.width - 1 - point.x}`), so EMR x runs down the page and
+  EMR y runs right-to-left. Don't reach for it when building geometry.
+- Failure mode if you get this wrong is nasty: EMR-sized coordinates produce an element that
+  inserts, persists, and reads back **successfully** — it's just drawn off the page. Every API
+  reports success and nothing is visible.
+
+### Pen values that actually render
+
+Copied from a native straight line; guessed values did not work.
+
+- `penType: 10`, `penColor: 0` (black), `penWidth: 500`.
+- `penWidth` must be >= 100 or `insertGeometry` fails with error 107. Note 500 is the native
+  value, so penWidth is evidently *not* in the same units as the points.
+- General technique that repeatedly beat guessing: **read an existing element off the page and
+  copy its values.** Undocumented enums (`penType`, `penColor`) are answered instantly by
+  whatever the device itself produced.
+
+### Insert paths — all three work
+
+`PluginCommAPI.insertGeometry(geometry)` (simplest, but can't set `userData` since that lives on
+`Element`), `PluginCommAPI.insertPageElements(elements, page, layer?)`, and
+`PluginFileAPI.insertElements(notePath, page, elements)`. All three insert and persist.
+
+- `PluginNoteAPI.saveCurrentNote()` exists and is worth calling after a comm-API insert — the
+  comm APIs edit the live document while `getElements` reads the file. (It is on `PluginNoteAPI`,
+  not `PluginCommAPI` — easy to miss.)
+- `PluginCommAPI.reloadFile()` refreshes the rendered page.
+- `getLastElement()` returns the last *existing* element, so it is not proof your insert worked —
+  it happily returns someone else's element after a failed insert.
+
+### Recognition notes can't use layers
+
+`getLayers` on a note with handwriting recognition enabled fails with error 804, "recognized
+notes cannot operate on layers". Ordinary notes report layer 0 "Main layer", visible. Step 4 will
+have to either special-case recognition notes or not offer checkboxes there.
+
+### Still open — the actual anchoring question
+
+Everything above is about *drawing*. The original question is still unanswered: **does `userData`
+(or `uuid`) survive closing and reopening the note?** The probe's "B: pageElements" path stamps
+`userData` with a tag; the test is to insert, close the note, reopen, and read back. If the tag
+survives, anchoring is content-based and easy. If not, we fall back to `uuid`, and failing that to
+`numInPage` — which is explicitly "index within the page" and therefore likely to shift as the
+user edits.
 
 ## The native build needs JDK 21 — Android Studio's bundled JDK is too new
 

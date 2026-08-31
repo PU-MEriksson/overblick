@@ -18,6 +18,11 @@ import {PluginManager} from 'sn-plugin-lib';
 import {useLassoCapture} from './src/lasso/useLassoCapture';
 import {useTodos} from './src/todos/useTodos';
 import {TodoList} from './src/todos/TodoList';
+import {AnchorProbe} from './src/probe/AnchorProbe';
+
+// TEMPORARY — spike for milestone step 4. Flip to false to hide, and delete
+// this along with src/probe/ once the anchoring question is answered.
+const SHOW_ANCHOR_PROBE = true;
 
 /**
  * Plugin View
@@ -60,17 +65,18 @@ function App(): React.JSX.Element {
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={isDarkMode ? '#000000' : '#ffffff'}
       />
-      {isBusy && (
+      {SHOW_ANCHOR_PROBE && <AnchorProbe />}
+      {!SHOW_ANCHOR_PROBE && isBusy && (
         <View style={styles.centered}>
           <ActivityIndicator size="large" />
         </View>
       )}
-      {!isBusy && failure !== '' && (
+      {!SHOW_ANCHOR_PROBE && !isBusy && failure !== '' && (
         <View style={styles.centered}>
           <Text style={[styles.errorText, textColor]}>{failure}</Text>
         </View>
       )}
-      {!isBusy && failure === '' && (
+      {!SHOW_ANCHOR_PROBE && !isBusy && failure === '' && (
         <TodoList todos={todos} textColor={textColor} />
       )}
     </View>
