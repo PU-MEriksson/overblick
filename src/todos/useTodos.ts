@@ -64,8 +64,21 @@ export function useTodos() {
   }, [todos]);
 
   const addTodo = useCallback((capture: Capture) => {
-    setTodos(prev => [...prev, {id: createId(), ...capture}]);
+    setTodos(prev => [...prev, {id: createId(), done: false, ...capture}]);
   }, []);
 
-  return {todos, addTodo, status, errorMessage};
+  // Flips one todo's done state. The save effect above picks the change up and
+  // persists the whole list, so there's nothing to write here. Eventually this
+  // is also where the note's mark gets updated — the two halves of milestone
+  // step 4 have to move together, and this is the single place that knows a
+  // toggle happened.
+  const toggleTodo = useCallback((id: string) => {
+    setTodos(prev =>
+      prev.map(todo =>
+        todo.id === id ? {...todo, done: !todo.done} : todo,
+      ),
+    );
+  }, []);
+
+  return {todos, addTodo, toggleTodo, status, errorMessage};
 }

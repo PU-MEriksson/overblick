@@ -150,9 +150,15 @@ docs.supernote.com alone. Append here as we discover more — don't rediscover t
 - It doesn't. Confirmed on-device 2026-08-31 by Malin: adding selected text to the native to-do
   produces a **link back to the note, visible only inside the to-do app**. The note page itself
   gets **no visual indication** that the text is now a to-do.
-- Milestone step 4 needs a mark *on the page*, so the checkbox has to be drawn ourselves. Don't
-  re-investigate `linkType` hoping for a shortcut — the feature exists, it just renders in the
-  wrong place.
+- Milestone step 4 needs a mark *on the page*, so the checkbox itself has to be drawn ourselves.
+
+**Correction, 2026-09-01.** This section used to end with "don't re-investigate `linkType` hoping
+for a shortcut". That advice was wrong and nearly cost us the best anchor available. What's true
+is narrow: the *native to-do feature* draws nothing on the page. It does **not** follow that link
+elements are useless — a plugin creating its own stroke link with `style: 2` **does** draw a
+dashed border around the handwriting. See "Stroke links are the real anchor" below. Lesson worth
+keeping: "feature X doesn't do what we want" is not evidence about the API primitive underneath
+it.
 - For jumping from our list back to the source note we don't need links anyway:
   `PluginFileAPI.openFile(filePath, page)` does exactly that, and we already store
   `notePath`/`page` on every `TodoItem`.
@@ -214,14 +220,174 @@ Copied from a native straight line; guessed values did not work.
 notes cannot operate on layers". Ordinary notes report layer 0 "Main layer", visible. Step 4 will
 have to either special-case recognition notes or not offer checkboxes there.
 
-### Still open — the actual anchoring question
+### Answered — elements have NO stable identity. Don't try to tag them.
 
-Everything above is about *drawing*. The original question is still unanswered: **does `userData`
-(or `uuid`) survive closing and reopening the note?** The probe's "B: pageElements" path stamps
-`userData` with a tag; the test is to insert, close the note, reopen, and read back. If the tag
-survives, anchoring is content-based and easy. If not, we fall back to `uuid`, and failing that to
-`numInPage` — which is explicitly "index within the page" and therefore likely to shift as the
-user edits.
+Tested on-device 2026-09-01 with `src/probe/AnchorProbe.tsx` ("B: pageElements" stamps
+`userData`, "3. Read back" reports a per-anchor verdict). Result: **both `userData` and `uuid`
+are lost**, and it takes far less than a reopen to lose them.
+
+- **`userData` reads back empty.** We set `Element.userData` to a tag before `insertPageElements`;
+  the element inserts, renders and persists, but every read-back reports `userData=(empty)`. The
+  field exists on the RN model (`Element.d.ts`: `userData: string`, "custom user data") and is
+  accepted without error, but it evidently never reaches the `.note` file. **Silent** — no failed
+  `APIResponse`, nothing to catch.
+- **`uuid` changes on every single read.** Not per session, per *call* — reading the same
+  unmodified page twice in a row yields different uuids, with no close/reopen involved.
+- The types say why, and it means uuid was never a candidate: `uuid` is a **handle into the
+  Android-side native cache**, minted per read, not an identity stored in the file. See
+  `ElementDataAccessor`'s `constructor(uuid, type, dataType)` reaching "Android native cache",
+  and `PluginCommAPI.recycleElement(uuid)` — "Recycles an Element (Trail) object". A handle you
+  are expected to *release* is by definition not a persistent id. (This is also why the probe
+  reads `el.uuid` into a local before calling `recycleElement`.)
+
+**Consequence for milestone step 4: there is no way to mark an element so we can find it again.**
+Don't spend more time looking for one — `userData`, `uuid` and a custom element type are all
+ruled out.
+
+### Stroke links ARE the real anchor — `destPath` is an arbitrary persisted string
+
+Found 2026-09-01 by reading the **SuperTask** plugin
+(`github.com/apclark31/supernote-plugin-research/tree/main/plugins/SuperTask`), which marks
+captured handwriting with exactly the dashed rectangle we wanted. Confirmed against
+`sn-plugin-lib`'s own types, so this is not community hearsay — the API is
+`PluginNoteAPI.setLassoStrokeLink`, documented in `PluginNoteAPI.d.ts`.
+
+The whole trick, from `src/screens/TaskAdd.tsx`:
+
+```js
+await PluginNoteAPI.setLassoStrokeLink({
+  destPath: `supertask://task/${task.id}`, // arbitrary string — THIS is the anchor
+  destPage: 0,
+  style: 2,     // 0=solid underline, 1=solid border, 2=dashed border
+  linkType: 4,  // 0=note page, 1=note file, 2=document, 3=image, 4=URL
+});
+await PluginNoteAPI.saveCurrentNote();
+```
+
+and finding it again, from `src/utils/noteHeal.js`:
+
+```js
+const res = await PluginFileAPI.getElements(pageNum, notePath);
+const found = res.result.some(
+  el => el.type === 600 && el.link?.destPath === `supertask://task/${taskId}`,
+);
+```
+
+Why this matters so much:
+
+- **`destPath` gives us the element identity we concluded didn't exist.** The "no stable identity"
+  finding above is still correct *as stated* — `userData` and `uuid` are both dead ends — but it
+  turns out identity does exist on `TYPE_LINK` (600) elements, in a field nominally meant for URLs.
+  `linkType: 4` tells the device "this is a website URL", so it stores the string verbatim and
+  never tries to resolve it. A custom `scheme://` is then just a tag that happens to live in a
+  URL field.
+- **It operates on the current lasso selection, so no coordinates are involved.** No page-size
+  maths, no EMR-vs-pixels trap, no drift. That's our exact capture flow already.
+- **It binds to the strokes, not to a position — verified on-device 2026-09-01.** `destPath`
+  survived a full Supernote restart, and after dragging the handwriting across the page the
+  border **followed it**, reporting a rect 615px from where it was created. `Link` carries its
+  own `X/Y/width/height`, so reading the link back tells us where the handwriting *is now*, not
+  where it used to be. This is the decisive advantage over a square drawn at fixed coordinates:
+  the anchor tracks the content instead of the page.
+- **SuperTask trusts it enough to recover from file renames with it.** `noteHeal.js` finds a
+  renamed `.note` by probing candidate files for its own `supertask://` link. You don't build
+  that on an anchor you think is flaky.
+
+Also confirmed by their code, independently of our probe: they call `recycleElements(els)` after
+every `getElements`, consistent with our finding that `uuid` is a native-cache handle.
+
+Minor: they call `PluginCommAPI.lassoElements(rect)` through an `as any` cast, but it *is* in our
+`PluginCommAPI.d.ts` (re-lassoing a region by rect). No cast needed on our version.
+
+**`setLassoStrokeLink` returns a result CODE, not a boolean.** `0=success, -1=failure,
+-2=destination needs upgrade`. So `success: true` with `result: -1` is a failed call — checking
+`success` alone, the way every other API in this codebase is checked, would silently record a link
+that was never created. Check `res.success === true && res.result === 0`.
+
+**Consequence — this is the anchor for milestone step 4.** Link the lasso at capture time, store
+`destPath` on the `TodoItem`, and find the handwriting again later by reading elements and
+matching `el.type === 600 && el.link.destPath`. The link's `X/Y/width/height` then gives the
+*current* position of the handwriting, which is where anything we draw alongside it has to go.
+Note the asymmetry: the link follows the strokes, but a geometry element we insert does **not** —
+so a drawn checkbox has to be repositioned from the link's rect rather than assumed to still be
+in the right place.
+
+### The border-style flip works, but a stroke link is TAPPABLE — that's the catch
+
+Tested on-device 2026-09-01. `Link.style` (0=solid underline, 1=solid border, 2=dashed border) can
+be flipped **both ways**, dashed ↔ solid, and the change renders.
+
+**The route that worked is the good one: `PluginFileAPI.modifyElements(notePath, page, [el])` —
+by path, with no lasso and no need for the note to be open.** Read the page's elements, find ours
+by `destPath`, mutate `el.link.style`, write the element back. The lasso-based fallback
+(`lassoElements(rect)` + `modifyLassoLink`) was never needed.
+
+That is a bigger result than the border cosmetics, and it holds regardless of what we decide the
+mark should look like: **the whole app→note direction is proven.** Ticking a todo in the plugin's
+list can update the note file directly, without opening it. Combined with `insertElements` (also
+proven by path) and `deleteElements`, every write we need for step 4 is available off-lasso. The
+only direction still unproven is note→app — noticing a mark the user made by hand — which can't
+be live and will have to happen when the plugin next opens.
+
+Two findings say the *style flip* shouldn't be the final visual, though:
+
+- **The link is clickable, and tapping it opens a browser search.** With `linkType: 4` the device
+  genuinely believes `overblick://probe/<id>` is a website, so tapping the handwriting runs a
+  Google search for that string. A user tapping their own note and being thrown into a browser is
+  not acceptable, and it's a property of `linkType: 4` itself — not of the style flip. **This
+  affects the anchor, not just the done-marker.** SuperTask has the same behaviour with
+  `supertask://task/<id>`, so it's inherent to the technique rather than something we got wrong.
+- **Changing the style reflows the link decoration.** Going dashed → solid narrows the box and
+  moves the little link glyph *into* the handwriting rather than sitting after it. Ugly, and it
+  means the two states differ by more than a line style.
+
+Worth trying when we return to this (untested, in rough order of promise):
+
+1. **`Link.fullText` / `showText`** are also persisted fields on `Link`. If either survives a
+   round trip, the tag could live there instead of in `destPath` — which would free `destPath` to
+   be something harmless.
+2. **`linkType: 0` (note page) or `1` (note file) pointing at the note's own path**, so a tap is a
+   no-op jump to where you already are instead of a browser launch. Only useful combined with (1),
+   since `destPath` would no longer be free to carry the id.
+3. **Keep the link purely as an invisible anchor** (if a style exists that draws nothing) and draw
+   the checkbox ourselves — back to the original plan, but with a durable anchor underneath it.
+
+### Fallback if a link won't do: match on geometry
+
+Confirmed on-device 2026-09-01 via the probe's "6. Find my square", across a **full Supernote
+restart** (a stronger test than reopening the note — and note there is no obvious way to "close" a
+note on the device at all, you just open a different one, so restart is the honest test).
+
+A square inserted at left 300, top 500, side 120 read back afterwards as:
+
+```
+inserted:  (300,500) (420,500) (420,620) (300,620) (300,500)
+read back: (299,500) (419,500) (419,620) (299,620) (299,500)
+```
+
+- **The shape survives.** Same five points, same order, closing duplicate intact.
+- **x comes back exactly 1px low; y is exact.** Uniform across every point — a constant offset,
+  not noise, and it does **not** scale with the size of the shape. A small fixed tolerance is
+  therefore permanently sufficient; the probe uses 4px and measured drift of 1px.
+- Hypothesis for the off-by-one, unproven and not worth proving: the documented px→EMR transform
+  is `{x: point.y, y: pageSize.width - 1 - point.x}` — only x carries a `width - 1` offset, y maps
+  straight through. An off-by-one between the write and read halves of that conversion produces
+  exactly this signature. Treat as a plausible explanation, not fact. Either way the fix is the
+  tolerance.
+- **Don't match on equality.** The obvious implementation — compare inserted points to read-back
+  points — fails on every single element because of that 1px.
+
+So the anchoring recipe is: **record where you drew the box (screen px), then find it again by
+searching the page for a `TYPE_GEO` element whose bounding box matches within a few px.**
+
+`numInPage` still has one job, but only a fleeting one. It's how `deleteElements` and
+`modifyElements` address elements, so the pattern must be **search by geometry → act on the index
+you just resolved, immediately**. Never persist an index between sessions: it's an index within
+the page and shifts as the user edits above it.
+
+Indices are **1-based**: `getElement(notePath, page, num)`'s doc says so, and the probe's match
+landed on element `#1` on a page whose only geometry was ours. An off-by-one here would delete
+the wrong element.
 
 ## The native build needs JDK 21 — Android Studio's bundled JDK is too new
 

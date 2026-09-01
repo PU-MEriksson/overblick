@@ -24,6 +24,10 @@ export type Capture = {
 export type TodoItem = {
   id: string;
   text: string;
+  // Milestone step 4: the plugin's half of the checked state. The note's half
+  // (a mark on the page) isn't built yet — see CLAUDE.md — so for now this is
+  // the only place "done" is recorded.
+  done: boolean;
   stickerPath: string | null;
   notePath: string | null;
   page: number | null;

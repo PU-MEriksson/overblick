@@ -35,23 +35,66 @@ Working end-to-end on-device, in `src/`:
   2026-08-31: todos survive both a device restart and a plugin uninstall/reinstall.
 - **Milestone step 3 (list of todos as text):** done. `src/todos/TodoList.tsx` renders the
   list, which now loads from storage when the plugin opens.
-- **Milestone step 4 (synced checkbox on the page):** not started, and the one step that needs
-  real design work rather than wiring. Settled 2026-08-31: the checkbox must be **drawn by us**.
-  Supernote's own to-do feature only produces a link visible inside the to-do app — the note page
-  gets no visual mark — so it can't stand in for the checkbox (confirmed on-device; see
-  `docs/api-notes.md`). There's no checkbox element type and not even a rectangle primitive, so
-  a box is a polygon, straight lines, or an inserted sticker. Writing into a note also needs
-  `PluginManager.requestPermission('plugin.permission.FILE:WRITE')`, unlike the plugin's own
-  storage. The hard part is anchoring: elements are addressed by index within a page, so keeping
-  a checkbox tied to its todo across page edits is the problem to solve first.
+- **Milestone step 4 (synced checkbox on the page):** half done, and split deliberately.
+  - *App half — done 2026-09-01.* `TodoItem.done`, a hand-rolled checkbox in
+    `src/todos/TodoList.tsx` (RN has no checkbox primitive and core removed its `CheckBox`, so
+    every RN checkbox anywhere is a `Pressable` + bordered `View` + glyph — we own ours), and
+    `toggleTodo` in `useTodos.ts`. Persisted, with a real v1→v2 migration in `todoStorage.ts`:
+    reading *older* data must upgrade it, only *newer* data may be refused. Done state shows as
+    tick + strikethrough + italic, never colour.
+  - *Note half — anchoring solved, visual parked.* See the anchoring section below. Writing into
+    a note needs `PluginManager.requestPermission('plugin.permission.FILE:WRITE')`, unlike the
+    plugin's own storage. There's no checkbox element type and not even a rectangle primitive, so
+    a drawn box would be a polygon, straight lines, or an inserted sticker.
 
-**Next planned step:** milestone step 4. A spike is in progress in `src/probe/AnchorProbe.tsx`
-(temporary, shown instead of the todo list via `SHOW_ANCHOR_PROBE` in `App.tsx`; delete both when
-done). Drawing a shape into a note now works end-to-end — see "Drawing a shape on a page" in
-`docs/api-notes.md` for the recipe, especially that `Geometry.points` are screen pixels rather
-than EMR. **The anchoring question itself is still open:** insert a `userData`-tagged element,
-close and reopen the note, and read back to see whether the tag survives. That answers whether a
-checkbox can be found again by content or has to rely on a positional index.
+**Next planned step:** decide what the mark on the note page should look like, after surveying
+what other community plugins do. The spike that answered anchoring lives in
+`src/probe/AnchorProbe.tsx` + `src/probe/probeRecord.ts` (temporary; `SHOW_ANCHOR_PROBE` in
+`App.tsx` is now `false`, flip it to `true` to get the probe screen back, and delete both files
+once the note-side visual is settled). Drawing a shape into a note works end-to-end — see
+"Drawing a shape on a page" in `docs/api-notes.md` for the recipe, especially that
+`Geometry.points` are screen pixels rather than EMR.
+
+### Anchoring: solved 2026-09-01. Use a stroke link.
+
+`PluginNoteAPI.setLassoStrokeLink({destPath, destPage: 0, style: 2, linkType: 4})` turns the
+current lasso selection into a link element and draws a **dashed border around the handwriting**.
+`destPath` is an arbitrary string stored verbatim (`linkType: 4` = "URL", so the device never
+tries to resolve our made-up `overblick://todo/<id>` scheme). Find it again with `getElements` →
+`el.type === 600 && el.link.destPath === ...`.
+
+Verified on-device: `destPath` survives a full device restart, and the border **follows the
+handwriting when it's dragged** (measured 615px from where it was created). So the anchor tracks
+the content rather than the page, and the link's `X/Y/width/height` tells us where the handwriting
+*is now*. No coordinates are involved in creating it at all. Found by reading the SuperTask
+plugin; full recipe and its gotchas (notably: it returns a result **code**, not a boolean) in
+`docs/api-notes.md`.
+
+Two dead ends behind that answer, both confirmed on-device — don't retry either. **`userData` is
+silently discarded** (accepted on insert, never written to the file) and **`uuid` is a
+native-cache handle** that changes on every single read. Ordinary elements have no identity; only
+links do. A geometry fallback (match a drawn square by its points, within a few px — they read
+back 1px low on x) is documented in `docs/api-notes.md` but shouldn't be needed.
+
+**Deliberately parked 2026-09-01 — what "done" looks like on the page.** The border-style flip
+(dashed ↔ solid) works both ways, but a `linkType: 4` link is **tappable and opens a browser
+search** for our fake URL, and flipping the style reflows the link glyph into the handwriting.
+Good enough to keep working with, not good enough to ship. Ideas for revisiting it — `fullText`/
+`showText` as alternative tag carriers, a harmless `linkType` — are listed in `docs/api-notes.md`.
+Malin also wants to survey what other community plugins do before settling this.
+
+**The app→note direction is proven, whatever the mark ends up being.**
+`PluginFileAPI.modifyElements(notePath, page, [el])` changed our link's style **by path, with no
+lasso and the note not open** (confirmed on-device 2026-09-01). With `insertElements` and
+`deleteElements` also available off-lasso, every write step 4 needs can be driven from the plugin's
+list. Only note→app is unproven — a mark the user makes by hand can't be watched live and will
+have to be noticed when the plugin next opens.
+
+One other thing still undesigned, waiting on the visual decision: repositioning. The link follows
+the strokes, but a geometry element we insert does **not**, so a drawn checkbox would have to be
+repositioned from the link's current rect on each open.
+
+Keep `src/probe/` until this is finished; it's the cheapest place to test the modify/delete paths.
 
 **Deferred by decision, not oversight:** planned dates, today/this week/this month, and an
 "important" flag are wanted eventually, but stay out of scope until the milestone is finished.

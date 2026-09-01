@@ -20,9 +20,11 @@ import {useTodos} from './src/todos/useTodos';
 import {TodoList} from './src/todos/TodoList';
 import {AnchorProbe} from './src/probe/AnchorProbe';
 
-// TEMPORARY — spike for milestone step 4. Flip to false to hide, and delete
-// this along with src/probe/ once the anchoring question is answered.
-const SHOW_ANCHOR_PROBE = true;
+// TEMPORARY — spike for milestone step 4. The anchoring question is answered
+// (stroke links; see docs/api-notes.md), so the probe is off. Flip to true to
+// get it back while designing the on-page mark; delete it along with src/probe/
+// once that's settled too.
+const SHOW_ANCHOR_PROBE = false;
 
 /**
  * Plugin View
@@ -33,6 +35,7 @@ function App(): React.JSX.Element {
   const {
     todos,
     addTodo,
+    toggleTodo,
     status: storageStatus,
     errorMessage: storageError,
   } = useTodos();
@@ -77,7 +80,11 @@ function App(): React.JSX.Element {
         </View>
       )}
       {!SHOW_ANCHOR_PROBE && !isBusy && failure === '' && (
-        <TodoList todos={todos} textColor={textColor} />
+        <TodoList
+          todos={todos}
+          textColor={textColor}
+          onToggle={toggleTodo}
+        />
       )}
     </View>
   );
