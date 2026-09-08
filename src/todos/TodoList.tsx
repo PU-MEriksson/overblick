@@ -6,7 +6,9 @@ type Props = {
   todos: TodoItem[];
   textColor: {color: string};
   onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
+  // Takes the whole todo, not just its id: deleting has to clean up the todo's
+  // `.sticker` file, and the path to it lives on the item.
+  onDelete: (todo: TodoItem) => void;
 };
 
 /**
@@ -72,7 +74,7 @@ export function TodoList({todos, textColor, onToggle, onDelete}: Props) {
           </Pressable>
           <Pressable
             style={styles.deleteButton}
-            onPress={() => onDelete(item.id)}
+            onPress={() => onDelete(item)}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={`Delete ${item.text}`}>

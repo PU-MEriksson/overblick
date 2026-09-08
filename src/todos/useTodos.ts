@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {FileUtils} from 'sn-plugin-lib';
 import type {Capture, TodoItem} from '../types';
 import {loadTodos, saveTodos} from './todoStorage';
 import {MOCK_TODOS} from './mockTodos';
@@ -90,13 +91,29 @@ export function useTodos() {
     );
   }, []);
 
-  // Removes a todo from the list. Same deal as the toggle above — the save
-  // effect notices the change and rewrites the whole list. Note this only
-  // forgets the todo on the plugin's side: the handwriting, its `.sticker`
-  // snapshot and the stroke link drawn around it are all still in the note.
-  // Cleaning those up is part of the note-side work, not this.
-  const deleteTodo = useCallback((id: string) => {
-    setTodos(prev => prev.filter(todo => todo.id !== id));
+  // Removes a todo from the list, and deletes the ink snapshot that went with
+  // it. Takes the whole todo rather than just an id because it needs the
+  // `stickerPath`, and the `[]` deps below mean this can't read `todos` — that
+  // closure still holds the empty array from the first render.
+  //
+  // Not cleaned up here: the handwriting itself, which is the user's note and
+  // none of our business, and the mark on the page, which doesn't exist yet.
+  // See CLAUDE.md — once a capture starts drawing a stroke link, deleting the
+  // todo has to remove that too.
+  const deleteTodo = useCallback((todo: TodoItem) => {
+    // State first, so the row goes immediately; the save effect above rewrites
+    // the stored list without it. Nothing here can fail.
+    setTodos(prev => prev.filter(other => other.id !== todo.id));
+
+    // Then the file. Deliberately outside the updater above: React treats
+    // updaters as pure and may call them more than once (StrictMode does so on
+    // purpose in dev), which would fire the delete twice. Best-effort for the
+    // same reason writing it was — a leftover .sticker is untidy, but failing
+    // the delete over one would be worse, and there's nothing the user could
+    // do about it anyway.
+    if (todo.stickerPath) {
+      FileUtils.deleteFile(todo.stickerPath).catch(() => {});
+    }
   }, []);
 
   return {todos, addTodo, toggleTodo, deleteTodo, status, errorMessage};

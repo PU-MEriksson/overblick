@@ -43,4 +43,13 @@ export const MOCK_TODOS: TodoItem[] = [
     page: null,
     rect: null,
   },
+  {
+    id: 'mock-4',
+    text: 'Check the weather forecast for the weekend',
+    done: true,
+    stickerPath: null,
+    notePath: null,
+    page: null,
+    rect: null,
+  },
 ];
