@@ -1,0 +1,46 @@
+import type {TodoItem} from '../types';
+
+/**
+ * TEMPORARY — dev-loop scaffolding, delete once it stops being useful.
+ *
+ * Todos can only be created by lassoing handwriting, which needs the Supernote
+ * plugin host. In the `yarn android` dev loop the app runs standalone, so
+ * there's no lasso, no `PluginCommAPI`, and the list is always empty — which
+ * makes it impossible to look at the list UI without doing a full package build
+ * and installing on the device.
+ *
+ * These stand in for real captures so the list can be worked on with Fast
+ * Refresh. The note-side fields are all null, exactly as they'd be if a capture
+ * failed to record where it came from.
+ */
+export const MOCK_TODOS: TodoItem[] = [
+  {
+    id: 'mock-1',
+    text: 'Book the ferry tickets',
+    done: false,
+    stickerPath: null,
+    notePath: null,
+    page: null,
+    rect: null,
+  },
+  {
+    id: 'mock-2',
+    text: 'Call the dentist back about the appointment',
+    done: true,
+    stickerPath: null,
+    notePath: null,
+    page: null,
+    rect: null,
+  },
+  {
+    id: 'mock-3',
+    // Long on purpose: checks that the text wraps and the trash icon stays put
+    // instead of being pushed off the edge of the row.
+    text: 'Ask about whether the balcony railing needs to be replaced before the inspection in the spring',
+    done: false,
+    stickerPath: null,
+    notePath: null,
+    page: null,
+    rect: null,
+  },
+];

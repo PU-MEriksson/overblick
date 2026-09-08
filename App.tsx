@@ -36,6 +36,7 @@ function App(): React.JSX.Element {
     todos,
     addTodo,
     toggleTodo,
+    deleteTodo,
     status: storageStatus,
     errorMessage: storageError,
   } = useTodos();
@@ -84,6 +85,7 @@ function App(): React.JSX.Element {
           todos={todos}
           textColor={textColor}
           onToggle={toggleTodo}
+          onDelete={deleteTodo}
         />
       )}
     </View>

@@ -1,11 +1,12 @@
 import React from 'react';
-import {FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
+import {FlatList, Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import type {TodoItem} from '../types';
 
 type Props = {
   todos: TodoItem[];
   textColor: {color: string};
   onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
 };
 
 /**
@@ -28,7 +29,7 @@ function Checkbox({checked}: {checked: boolean}) {
   );
 }
 
-export function TodoList({todos, textColor, onToggle}: Props) {
+export function TodoList({todos, textColor, onToggle, onDelete}: Props) {
   if (todos.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -46,26 +47,42 @@ export function TodoList({todos, textColor, onToggle}: Props) {
       data={todos}
       keyExtractor={item => item.id}
       renderItem={({item}) => (
-        <Pressable
-          style={styles.row}
-          onPress={() => onToggle(item.id)}
-          hitSlop={8}
-          accessibilityRole="checkbox"
-          accessibilityState={{checked: item.done}}>
-          <Checkbox checked={item.done} />
-          <Text
-            style={[
-              styles.rowText,
-              textColor,
-              // No colour available to signal "done" on a black-and-white
-              // screen, so the done state is carried by the tick plus a
-              // strikethrough. Deliberately not grey — mid-greys dither badly
-              // on e-ink and read as a rendering fault rather than a state.
-              item.done && styles.rowTextDone,
-            ]}>
-            {item.text}
-          </Text>
-        </Pressable>
+        // The row is a plain View holding two separate touch targets. A
+        // Pressable inside a Pressable would work on Android, but the press
+        // bubbles — tapping delete would toggle the todo on the way out.
+        <View style={styles.row}>
+          <Pressable
+            style={styles.toggleArea}
+            onPress={() => onToggle(item.id)}
+            accessibilityRole="checkbox"
+            accessibilityState={{checked: item.done}}>
+            <Checkbox checked={item.done} />
+            <Text
+              style={[
+                styles.rowText,
+                textColor,
+                // No colour available to signal "done" on a black-and-white
+                // screen, so the done state is carried by the tick plus a
+                // strikethrough. Deliberately not grey — mid-greys dither badly
+                // on e-ink and read as a rendering fault rather than a state.
+                item.done && styles.rowTextDone,
+              ]}>
+              {item.text}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.deleteButton}
+            onPress={() => onDelete(item.id)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${item.text}`}>
+            <Image
+              source={require('../../assets/trash.png')}
+              style={styles.trashIcon}
+              resizeMode="contain"
+            />
+          </Pressable>
+        </View>
       )}
     />
   );
@@ -77,19 +94,32 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   row: {
-    // The row is now the touch target, so the checkbox and text sit side by
-    // side and tapping anywhere on the line toggles it — an easier target than
-    // the box alone on a device this size.
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
     paddingHorizontal: 24,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#cccccc',
   },
+  toggleArea: {
+    // `flex: 1` makes the toggle claim every pixel the delete button doesn't,
+    // so tapping anywhere along the line toggles it — a far easier target than
+    // the checkbox alone on a device this size. The vertical padding lives here
+    // rather than on the row so it's part of the touch target, not dead space
+    // around it.
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  deleteButton: {
+    // Sized to a comfortable fingertip target and pushed clear of the text.
+    // `hitSlop` on top of this extends the touch area without moving anything.
+    paddingVertical: 12,
+    paddingLeft: 16,
+  },
   checkbox: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     marginRight: 16,
     // 2px rather than hairline: hairlines can disappear entirely on e-ink,
     // and an invisible checkbox is worse than an ugly one.
@@ -99,8 +129,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkmark: {
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '700',
     color: '#000000',
   },
@@ -122,5 +152,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  trashIcon: {
+    // The PNG is 512px square; RN scales it down to whatever box we give it, so
+    // the drawn size is set here rather than taken from the file.
+    width: 24,
+    height: 24,
+    tintColor: '#a7a5a5',
   },
 });
