@@ -85,9 +85,16 @@ export function useTodos() {
   // toggle happened.
   const toggleTodo = useCallback((id: string) => {
     setTodos(prev =>
-      prev.map(todo =>
-        todo.id === id ? {...todo, done: !todo.done} : todo,
-      ),
+      prev.map(todo => (todo.id === id ? {...todo, done: !todo.done} : todo)),
+    );
+  }, []);
+
+  // Replaces a todo's text — the OCR gets words wrong, and this is the only way
+  // to fix one. Like the toggle above, the save effect persists it; nothing to
+  // write here.
+  const updateTodoText = useCallback((id: string, text: string) => {
+    setTodos(prev =>
+      prev.map(todo => (todo.id === id ? {...todo, text} : todo)),
     );
   }, []);
 
@@ -116,5 +123,13 @@ export function useTodos() {
     }
   }, []);
 
-  return {todos, addTodo, toggleTodo, deleteTodo, status, errorMessage};
+  return {
+    todos,
+    addTodo,
+    toggleTodo,
+    updateTodoText,
+    deleteTodo,
+    status,
+    errorMessage,
+  };
 }

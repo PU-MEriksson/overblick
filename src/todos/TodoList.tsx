@@ -1,5 +1,15 @@
-import React from 'react';
-import {FlatList, Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {useState} from 'react';
+import {
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import type {TodoItem} from '../types';
 
 type Props = {
@@ -9,6 +19,8 @@ type Props = {
   // Takes the whole todo, not just its id: deleting has to clean up the todo's
   // `.sticker` file, and the path to it lives on the item.
   onDelete: (todo: TodoItem) => void;
+  // Called once, on save — not on every keystroke. See `draft` below for why.
+  onUpdateText: (id: string, text: string) => void;
 };
 
 /**
@@ -31,7 +43,40 @@ function Checkbox({checked}: {checked: boolean}) {
   );
 }
 
-export function TodoList({todos, textColor, onToggle, onDelete}: Props) {
+export function TodoList({
+  todos,
+  textColor,
+  onToggle,
+  onDelete,
+  onUpdateText,
+}: Props) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingTodo = todos.find(todo => todo.id === editingId) ?? null;
+  const {width: windowWidth, height: windowHeight} = useWindowDimensions();
+  const [draft, setDraft] = useState('');
+
+  const openEditor = (todo: TodoItem) => {
+    setEditingId(todo.id);
+    // Seed the draft from the todo. Forget this and the field opens empty.
+    setDraft(todo.text);
+  };
+
+  const closeEditor = () => {
+    // The draft is simply abandoned; nothing was committed.
+    setEditingId(null);
+  };
+
+  const saveEditor = () => {
+    // Refuse to save an empty todo: it would leave a blank row with nothing to
+    // long-press, and no way back to fix it. Trim also clears the trailing
+    // space the keyboard tends to leave behind.
+    const trimmed = draft.trim();
+    if (editingId !== null && trimmed !== '') {
+      onUpdateText(editingId, trimmed);
+    }
+    setEditingId(null);
+  };
+
   if (todos.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -44,53 +89,97 @@ export function TodoList({todos, textColor, onToggle, onDelete}: Props) {
   }
 
   return (
-    <FlatList
-      style={styles.list}
-      data={todos}
-      keyExtractor={item => item.id}
-      renderItem={({item}) => (
-        // The row is a plain View holding two separate touch targets. A
-        // Pressable inside a Pressable would work on Android, but the press
-        // bubbles — tapping delete would toggle the todo on the way out.
-        <View style={styles.row}>
-          <Pressable
-            style={styles.toggleArea}
-            onPress={() => onToggle(item.id)}
-            accessibilityRole="checkbox"
-            accessibilityState={{checked: item.done}}>
-            <Checkbox checked={item.done} />
-            <Text
-              style={[
-                styles.rowText,
-                textColor,
-                // No colour available to signal "done" on a black-and-white
-                // screen, so the done state is carried by the tick plus a
-                // strikethrough. Deliberately not grey — mid-greys dither badly
-                // on e-ink and read as a rendering fault rather than a state.
-                item.done && styles.rowTextDone,
-              ]}>
-              {item.text}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={styles.deleteButton}
-            onPress={() => onDelete(item)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={`Delete ${item.text}`}>
-            <Image
-              source={require('../../assets/trash.png')}
-              style={styles.trashIcon}
-              resizeMode="contain"
+    <View style={styles.container}>
+      <FlatList
+        style={styles.list}
+        data={todos}
+        keyExtractor={item => item.id}
+        renderItem={({item}) => (
+          <View style={styles.row}>
+            <Pressable
+              style={styles.toggleArea}
+              onPress={() => onToggle(item.id)}
+              accessibilityRole="checkbox"
+              accessibilityState={{checked: item.done}}>
+              <Checkbox checked={item.done} />
+            </Pressable>
+            <Pressable
+              style={styles.textArea}
+              onPress={() => onToggle(item.id)}
+              onLongPress={() => openEditor(item)}
+              delayLongPress={400}>
+              <Text
+                style={[
+                  styles.rowText,
+                  textColor,
+                  item.done && styles.rowTextDone,
+                ]}>
+                {item.text}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.deleteButton}
+              onPress={() => onDelete(item)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${item.text}`}>
+              <Image
+                source={require('../../assets/trash.png')}
+                style={styles.trashIcon}
+                resizeMode="contain"
+              />
+            </Pressable>
+          </View>
+        )}
+      />
+
+      <Modal
+        visible={editingTodo !== null}
+        transparent
+        animationType="none"
+        onRequestClose={closeEditor}>
+        <View
+          style={[
+            styles.modalBackdrop,
+            {width: windowWidth, height: windowHeight},
+          ]}>
+          <View style={styles.modalCard}>
+            <Text style={[styles.modalHeading, textColor]}>EDIT TODO</Text>
+            <TextInput
+              style={[styles.modalTextInput, textColor]}
+              value={draft}
+              onChangeText={setDraft}
+              multiline
             />
-          </Pressable>
+
+            <View style={styles.modalButtonRow}>
+              <Pressable style={styles.modalButton} onPress={closeEditor}>
+                <Text style={[styles.modalButtonText, textColor]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={saveEditor}>
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    styles.modalButtonTextPrimary,
+                  ]}>
+                  Save
+                </Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
-      )}
-    />
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    width: '100%',
+  },
   list: {
     flex: 1,
     width: '100%',
@@ -103,14 +192,17 @@ const styles = StyleSheet.create({
     borderBottomColor: '#cccccc',
   },
   toggleArea: {
-    // `flex: 1` makes the toggle claim every pixel the delete button doesn't,
-    // so tapping anywhere along the line toggles it — a far easier target than
-    // the checkbox alone on a device this size. The vertical padding lives here
-    // rather than on the row so it's part of the touch target, not dead space
-    // around it.
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+  },
+  textArea: {
+    // Claims every pixel the checkbox and the trash button don't, so a press
+    // anywhere along the line still toggles and a long press anywhere along it
+    // opens the editor — a far easier target than the checkbox alone on a
+    // device this size.
+    flex: 1,
+    justifyContent: 'center',
     paddingVertical: 12,
   },
   deleteButton: {
@@ -137,7 +229,6 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   rowText: {
-    flex: 1,
     fontSize: 18,
   },
   rowTextDone: {
@@ -161,5 +252,65 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     tintColor: '#a7a5a5',
+  },
+  modalBackdrop: {
+    // No `flex: 1` — the width and height come in from `useWindowDimensions`
+    // at the call site. See the comment on that hook for why.
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  modalCard: {
+    width: '100%',
+    padding: 24,
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  modalHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  modalTextInput: {
+    fontSize: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#000000',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    // Room for a couple of lines up front, so a long OCR'd todo doesn't open
+    // as a one-line field that grows under the user as they edit.
+    minHeight: 96,
+    // Android centres multiline text vertically by default; this puts the
+    // cursor at the top where it belongs.
+    textAlignVertical: 'top',
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  modalButton: {
+    // `alignSelf` dropped — the row now handles placement, and leaving it here
+    // would fight the row's own alignment.
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#000000',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonTextPrimary: {
+    // Set here rather than taking `textColor` from props: this text sits on
+    // black, so it has to be white regardless of the app's text colour.
+    color: '#ffffff',
   },
 });
