@@ -41,10 +41,11 @@ export function Header({
 
 const styles = StyleSheet.create({
   header: {
+    height: 64,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#000',
   },

@@ -4,7 +4,7 @@
  * @format
  */
 
-import React from 'react';
+import React, {useState} from 'react';
 import {
   ActivityIndicator,
   StatusBar,
@@ -19,6 +19,8 @@ import {useTodos} from './src/todos/useTodos';
 import {TodoList} from './src/todos/TodoList';
 import {AnchorProbe} from './src/probe/AnchorProbe';
 import {Header} from './src/components/header';
+import {ActionBar} from './src/components/ActionBar';
+import {TodoEditor} from './src/components/TodoEditor';
 
 // TEMPORARY — spike for milestone step 4. The anchoring question is answered
 // (stroke links; see docs/api-notes.md), so the probe is off. Flip to true to
@@ -44,8 +46,40 @@ function App(): React.JSX.Element {
   const {status: captureStatus, errorMessage: captureError} =
     useLassoCapture(addTodo);
 
+  // Selection mode: which todo the action bar is acting on, or null for no bar.
+  // It lives up here rather than in TodoList because two siblings need it — the
+  // list marks the selected row, and the slot above it swaps the header out for
+  // the action bar. Nearest common parent wins, which is this component.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedTodo = todos.find(todo => todo.id === selectedId) ?? null;
+
+  // Kept separate from `selectedId`: selecting a row and editing one are two
+  // different states, and the editor opens on top of a row that has already
+  // been deselected.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingTodo = todos.find(todo => todo.id === editingId) ?? null;
+
   const handleClose = () => {
     PluginManager.closePluginView();
+  };
+
+  const editSelected = () => {
+    setEditingId(selectedId);
+    setSelectedId(null);
+  };
+
+  const deleteSelected = () => {
+    if (selectedTodo) {
+      deleteTodo(selectedTodo);
+    }
+    setSelectedId(null);
+  };
+
+  const saveEdit = (text: string) => {
+    if (editingId !== null) {
+      updateTodoText(editingId, text);
+    }
+    setEditingId(null);
   };
 
   const textColor = {color: isDarkMode ? '#ffffff' : '#000000'};
@@ -63,10 +97,22 @@ function App(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Header onClose={handleClose} />
-      {/* <Pressable style={styles.closeButton} onPress={handleClose}>
-        <Text style={[styles.closeText, textColor]}>✕</Text>
-      </Pressable> */}
+      {/*
+        One slot, two occupants. Selecting a todo replaces the header with the
+        action bar instead of pushing it down — they're the same fixed height
+        (headerSlot.ts), so nothing below moves. On a screen that repaints this
+        slowly, a layout shift is the expensive part.
+      */}
+      {selectedTodo !== null ? (
+        <ActionBar
+          todo={selectedTodo}
+          onClear={() => setSelectedId(null)}
+          onEdit={editSelected}
+          onDelete={deleteSelected}
+        />
+      ) : (
+        <Header onClose={handleClose} />
+      )}
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={isDarkMode ? '#000000' : '#ffffff'}
@@ -87,8 +133,22 @@ function App(): React.JSX.Element {
           todos={todos}
           textColor={textColor}
           onToggle={toggleTodo}
-          onDelete={deleteTodo}
-          onUpdateText={updateTodoText}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+      )}
+
+      {/*
+        Mounted only while editing, which is how the editor seeds its draft —
+        see the comment on TodoEditor. Unmounting it throws the draft away,
+        which is exactly what cancelling should do.
+      */}
+      {editingTodo !== null && (
+        <TodoEditor
+          todo={editingTodo}
+          textColor={textColor}
+          onCancel={() => setEditingId(null)}
+          onSave={saveEdit}
         />
       )}
     </View>
@@ -100,18 +160,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 0,
     backgroundColor: '#ffffff',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  closeText: {
-    fontSize: 18,
-    fontWeight: '600',
   },
   centered: {
     flex: 1,
