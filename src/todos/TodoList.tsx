@@ -1,7 +1,6 @@
 import React, {useState} from 'react';
 import {
   FlatList,
-  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -54,6 +53,29 @@ export function TodoList({
   const editingTodo = todos.find(todo => todo.id === editingId) ?? null;
   const {width: windowWidth, height: windowHeight} = useWindowDimensions();
   const [draft, setDraft] = useState('');
+  // Selection mode: which todo the action bar is acting on, or null for no bar.
+  // Kept separate from `editingId` — selecting a row and editing one are two
+  // different states, and the bar has to stay up while the editor is closed.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedTodo = todos.find(todo => todo.id === selectedId) ?? null;
+
+  const clearSelection = () => {
+    setSelectedId(null);
+  };
+
+  const editSelected = () => {
+    if (selectedTodo) {
+      openEditor(selectedTodo);
+    }
+    setSelectedId(null);
+  };
+
+  const deleteSelected = () => {
+    if (selectedTodo) {
+      onDelete(selectedTodo);
+    }
+    setSelectedId(null);
+  };
 
   const openEditor = (todo: TodoItem) => {
     setEditingId(todo.id);
@@ -90,12 +112,60 @@ export function TodoList({
 
   return (
     <View style={styles.container}>
+      {/*
+        Contextual action bar — Android's selection-mode pattern, and what
+        Supernote's own apps use, so the gesture is already familiar. Rendered
+        inline above the list rather than as an overlay: it's a plain View, so
+        showing it changes one strip of the screen instead of opening a second
+        native window the way the Modal below does.
+
+        It pushes the list down rather than covering it. On a screen that
+        repaints this slowly, a layout shift is cheaper to read than a floating
+        layer, and nothing is hidden behind it.
+      */}
+      {selectedTodo !== null && (
+        <View style={styles.actionBar}>
+          <Pressable
+            onPress={clearSelection}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Clear selection">
+            <Text style={[styles.actionBarClose, textColor]}>✕</Text>
+          </Pressable>
+          {/*
+            Names the selected todo, because it can be scrolled out of sight
+            while the bar stays up. One line, ellipsised — the bar must not grow.
+          */}
+          <Text
+            style={[styles.actionBarLabel, textColor]}
+            numberOfLines={1}
+            ellipsizeMode="tail">
+            {selectedTodo.text}
+          </Text>
+          <Pressable
+            style={styles.actionBarButton}
+            onPress={editSelected}
+            accessibilityRole="button">
+            <Text style={[styles.actionBarButtonText, textColor]}>Edit</Text>
+          </Pressable>
+          <Pressable
+            style={styles.actionBarButton}
+            onPress={deleteSelected}
+            accessibilityRole="button">
+            <Text style={[styles.actionBarButtonText, textColor]}>Delete</Text>
+          </Pressable>
+        </View>
+      )}
       <FlatList
         style={styles.list}
         data={todos}
         keyExtractor={item => item.id}
         renderItem={({item}) => (
-          <View style={styles.row}>
+          <View
+            style={[
+              styles.row,
+              item.id === selectedId && styles.rowSelected,
+            ]}>
             <Pressable
               style={styles.toggleArea}
               onPress={() => onToggle(item.id)}
@@ -106,8 +176,13 @@ export function TodoList({
             <Pressable
               style={styles.textArea}
               onPress={() => onToggle(item.id)}
-              onLongPress={() => openEditor(item)}
-              delayLongPress={400}>
+              // Long press toggles selection rather than only setting it, so
+              // the same gesture that opens the bar also dismisses it.
+              onLongPress={() =>
+                setSelectedId(prev => (prev === item.id ? null : item.id))
+              }
+              delayLongPress={400}
+              accessibilityState={{selected: item.id === selectedId}}>
               <Text
                 style={[
                   styles.rowText,
@@ -116,18 +191,6 @@ export function TodoList({
                 ]}>
                 {item.text}
               </Text>
-            </Pressable>
-            <Pressable
-              style={styles.deleteButton}
-              onPress={() => onDelete(item)}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={`Delete ${item.text}`}>
-              <Image
-                source={require('../../assets/trash.png')}
-                style={styles.trashIcon}
-                resizeMode="contain"
-              />
             </Pressable>
           </View>
         )}
@@ -184,12 +247,54 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
+  actionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    // A solid rule under the bar separates it from the list without a fill.
+    // Inverting the whole bar to black would read strongly but lays down a lot
+    // of ink — slow to refresh, and prone to ghosting once it's dismissed.
+    borderBottomWidth: 2,
+    borderBottomColor: '#000000',
+  },
+  actionBarClose: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  actionBarLabel: {
+    // Takes the space the buttons don't, so the buttons keep their full size
+    // and it's the label that gets ellipsised on a long todo.
+    flex: 1,
+    fontSize: 15,
+    fontStyle: 'italic',
+  },
+  actionBarButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  actionBarButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 24,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#cccccc',
+    // The selection marker, transparent until a row is selected. Declared on
+    // every row so selecting one doesn't change its width and shuffle the text.
+    borderLeftWidth: 6,
+    borderLeftColor: 'transparent',
+  },
+  rowSelected: {
+    // A bar down the edge rather than an inverted row: it's unmistakable at
+    // 1-bit, and it inks a few pixels instead of the whole line.
+    borderLeftColor: '#000000',
   },
   toggleArea: {
     flexDirection: 'row',
@@ -204,12 +309,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingVertical: 12,
-  },
-  deleteButton: {
-    // Sized to a comfortable fingertip target and pushed clear of the text.
-    // `hitSlop` on top of this extends the touch area without moving anything.
-    paddingVertical: 12,
-    paddingLeft: 16,
   },
   checkbox: {
     width: 24,
@@ -245,13 +344,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  trashIcon: {
-    // The PNG is 512px square; RN scales it down to whatever box we give it, so
-    // the drawn size is set here rather than taken from the file.
-    width: 24,
-    height: 24,
-    tintColor: '#a7a5a5',
   },
   modalBackdrop: {
     // No `flex: 1` — the width and height come in from `useWindowDimensions`

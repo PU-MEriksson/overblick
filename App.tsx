@@ -12,13 +12,13 @@ import {
   Text,
   useColorScheme,
   View,
-  Pressable,
 } from 'react-native';
 import {PluginManager} from 'sn-plugin-lib';
 import {useLassoCapture} from './src/lasso/useLassoCapture';
 import {useTodos} from './src/todos/useTodos';
 import {TodoList} from './src/todos/TodoList';
 import {AnchorProbe} from './src/probe/AnchorProbe';
+import {Header} from './src/components/header';
 
 // TEMPORARY — spike for milestone step 4. The anchoring question is answered
 // (stroke links; see docs/api-notes.md), so the probe is off. Flip to true to
@@ -63,9 +63,10 @@ function App(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.closeButton} onPress={handleClose}>
+      <Header onClose={handleClose} />
+      {/* <Pressable style={styles.closeButton} onPress={handleClose}>
         <Text style={[styles.closeText, textColor]}>✕</Text>
-      </Pressable>
+      </Pressable> */}
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={isDarkMode ? '#000000' : '#ffffff'}
@@ -97,7 +98,7 @@ function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
+    paddingTop: 0,
     backgroundColor: '#ffffff',
   },
   closeButton: {
