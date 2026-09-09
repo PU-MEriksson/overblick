@@ -1,5 +1,5 @@
 import React from 'react';
-import {FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
+import {FlatList, Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import type {TodoItem} from '../types';
 
 type Props = {
@@ -17,19 +17,27 @@ type Props = {
 /**
  * There is no checkbox in React Native — no `<input type="checkbox">`, and core
  * removed its `CheckBox` component (importing it now throws). Every checkbox in
- * every RN library is this: a Pressable wrapping a bordered box and a glyph. So
- * we own it, which suits us — the libraries all style for colour, and this
- * screen is 1-bit e-ink.
+ * every RN library is this: a bordered View. So we own it, which suits us — the
+ * libraries all style for colour, and this screen is 1-bit e-ink.
  *
- * `hitSlop` is the one non-obvious bit: it extends the touch target beyond the
- * drawn box without making the box bigger. A 28px checkbox is a fiddly target
- * with a fingertip on a device this size; this makes it comfortable without
- * disturbing the layout.
+ * Done fills the box *and* shows a tick knocked out in white. The fill is what
+ * carries at a glance when scanning the list; the tick confirms it up close.
+ *
+ * The box itself is drawn rather than an Image, so its corners stay sharp at
+ * any pixel density. The tick is an Image because it's a real shape — but
+ * deliberately not a `✓` glyph: that character has no guaranteed font on
+ * Android, so you get whichever fallback the device picks, typically thin and
+ * off-centre. An asset is the same everywhere.
  */
 function Checkbox({checked}: {checked: boolean}) {
   return (
-    <View style={styles.checkbox}>
-      {checked && <Text style={styles.checkmark}>✓</Text>}
+    <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+      {checked && (
+        <Image
+          source={require('../../assets/check.png')}
+          style={styles.checkmark}
+        />
+      )}
     </View>
   );
 }
@@ -137,16 +145,27 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     marginRight: 16,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  checkboxChecked: {
+    // The border stays on under the fill, so the box keeps its exact size and
+    // the row doesn't shift when it's toggled.
+    backgroundColor: '#000000',
+  },
   checkmark: {
-    fontSize: 18,
-    lineHeight: 22,
-    fontWeight: '700',
-    color: '#000000',
+    // The border eats 2px a side, leaving a 20px well. 18 nearly fills it —
+    // Lucide's own padding inside the glyph supplies the breathing room. Drop
+    // to 16 if it reads too tight on-device.
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
+    // White, because it sits on the black fill. Same trick as the action bar:
+    // the asset's own colour is irrelevant, only its alpha silhouette matters.
+    tintColor: '#ffffff',
   },
   rowText: {
     fontSize: 18,
