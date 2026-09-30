@@ -12,7 +12,6 @@ import type {TodoItem} from '../types';
 
 type Props = {
   todo: TodoItem;
-  textColor: {color: string};
   onCancel: () => void;
   // Called once, on save — not on every keystroke. The draft below is why.
   onSave: (text: string) => void;
@@ -26,7 +25,6 @@ type Props = {
  */
 export function TodoEditor({
   todo,
-  textColor,
   onCancel,
   onSave,
 }: Props): React.JSX.Element {
@@ -53,9 +51,9 @@ export function TodoEditor({
           {width: windowWidth, height: windowHeight},
         ]}>
         <View style={styles.modalCard}>
-          <Text style={[styles.modalHeading, textColor]}>EDIT TODO</Text>
+          <Text style={styles.modalHeading}>EDIT TODO</Text>
           <TextInput
-            style={[styles.modalTextInput, textColor]}
+            style={styles.modalTextInput}
             value={draft}
             onChangeText={setDraft}
             multiline
@@ -63,7 +61,7 @@ export function TodoEditor({
 
           <View style={styles.modalButtonRow}>
             <Pressable style={styles.modalButton} onPress={onCancel}>
-              <Text style={[styles.modalButtonText, textColor]}>Cancel</Text>
+              <Text style={styles.modalButtonText}>Cancel</Text>
             </Pressable>
             <Pressable
               style={[styles.modalButton, styles.modalButtonPrimary]}
@@ -101,9 +99,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
     marginBottom: 12,
+    color: '#000000',
   },
   modalTextInput: {
     fontSize: 20,
+    color: '#000000',
     marginBottom: 24,
     borderWidth: 1,
     borderColor: '#000000',
@@ -133,10 +133,10 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#000000',
   },
   modalButtonTextPrimary: {
-    // Set here rather than taking `textColor` from props: this text sits on
-    // black, so it has to be white regardless of the app's text colour.
+    // White, because it sits on the black primary button.
     color: '#ffffff',
   },
 });

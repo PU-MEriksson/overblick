@@ -1,16 +1,9 @@
-/**
- * Simple Plugin
- *
- * @format
- */
-
 import React, {useState} from 'react';
 import {
   ActivityIndicator,
   StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
 } from 'react-native';
 import {PluginManager} from 'sn-plugin-lib';
@@ -22,10 +15,8 @@ import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
 
-// TEMPORARY — spike for milestone step 4. The anchoring question is answered
-// (stroke links; see docs/api-notes.md), so the probe is off. Flip to true to
-// get it back while designing the on-page mark; delete it along with src/probe/
-// once that's settled too.
+// TEMPORARY — flip to true to swap the list for the note-writing test screen.
+// Delete along with src/probe/ once step 4 is finished.
 const SHOW_ANCHOR_PROBE = false;
 
 /**
@@ -33,7 +24,6 @@ const SHOW_ANCHOR_PROBE = false;
  * Shows the list of handwriting captured via lasso selections.
  */
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
   const {
     todos,
     addTodo,
@@ -46,16 +36,13 @@ function App(): React.JSX.Element {
   const {status: captureStatus, errorMessage: captureError} =
     useLassoCapture(addTodo);
 
-  // Selection mode: which todo the action bar is acting on, or null for no bar.
-  // It lives up here rather than in TodoList because two siblings need it — the
-  // list marks the selected row, and the slot above it swaps the header out for
-  // the action bar. Nearest common parent wins, which is this component.
+  // Which todo the action bar is acting on, or null for no bar. Lives here
+  // because both the list and the header slot need it.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedTodo = todos.find(todo => todo.id === selectedId) ?? null;
 
-  // Kept separate from `selectedId`: selecting a row and editing one are two
-  // different states, and the editor opens on top of a row that has already
-  // been deselected.
+  // Which todo is open in the editor. Separate from `selectedId`: the row is
+  // deselected when the editor opens.
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingTodo = todos.find(todo => todo.id === editingId) ?? null;
 
@@ -82,12 +69,8 @@ function App(): React.JSX.Element {
     setEditingId(null);
   };
 
-  const textColor = {color: isDarkMode ? '#ffffff' : '#000000'};
-
-  // Reading the saved list has to finish before the list means anything, and a
-  // storage failure hides any capture error behind it — there's nowhere to put
-  // a new capture until storage works again.
   const isBusy = storageStatus === 'loading' || captureStatus === 'loading';
+  // A storage error wins: there's nowhere to put a capture until storage works.
   const failure =
     storageStatus === 'error'
       ? storageError
@@ -95,13 +78,40 @@ function App(): React.JSX.Element {
       ? captureError
       : '';
 
+  // What goes under the header. The first matching case wins.
+  const renderBody = () => {
+    if (SHOW_ANCHOR_PROBE) {
+      return <AnchorProbe />;
+    }
+    if (isBusy) {
+      return (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" />
+        </View>
+      );
+    }
+    if (failure !== '') {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{failure}</Text>
+        </View>
+      );
+    }
+    return (
+      <TodoList
+        todos={todos}
+        onToggle={toggleTodo}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+      />
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/*
-        One slot, two occupants. Selecting a todo replaces the header with the
-        action bar instead of pushing it down — they're the same fixed height
-        (headerSlot.ts), so nothing below moves. On a screen that repaints this
-        slowly, a layout shift is the expensive part.
+        Selecting a todo swaps the header for the action bar. They're the same
+        height, so nothing below moves — a layout shift is slow on e-ink.
       */}
       {selectedTodo !== null ? (
         <ActionBar
@@ -113,40 +123,14 @@ function App(): React.JSX.Element {
       ) : (
         <Header onClose={handleClose} />
       )}
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={isDarkMode ? '#000000' : '#ffffff'}
-      />
-      {SHOW_ANCHOR_PROBE && <AnchorProbe />}
-      {!SHOW_ANCHOR_PROBE && isBusy && (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" />
-        </View>
-      )}
-      {!SHOW_ANCHOR_PROBE && !isBusy && failure !== '' && (
-        <View style={styles.centered}>
-          <Text style={[styles.errorText, textColor]}>{failure}</Text>
-        </View>
-      )}
-      {!SHOW_ANCHOR_PROBE && !isBusy && failure === '' && (
-        <TodoList
-          todos={todos}
-          textColor={textColor}
-          onToggle={toggleTodo}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
-      )}
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/*
-        Mounted only while editing, which is how the editor seeds its draft —
-        see the comment on TodoEditor. Unmounting it throws the draft away,
-        which is exactly what cancelling should do.
-      */}
+      {renderBody()}
+
+      {/* Only mounted while editing; unmounting throws the draft away. */}
       {editingTodo !== null && (
         <TodoEditor
           todo={editingTodo}
-          textColor={textColor}
           onCancel={() => setEditingId(null)}
           onSave={saveEdit}
         />
@@ -172,6 +156,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontStyle: 'italic',
     textAlign: 'center',
+    color: '#000000',
   },
 });
 

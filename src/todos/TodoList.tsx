@@ -4,7 +4,6 @@ import type {TodoItem} from '../types';
 
 type Props = {
   todos: TodoItem[];
-  textColor: {color: string};
   onToggle: (id: string) => void;
   // Which row is in selection mode, and how to change it. Owned by App rather
   // than here, because the header slot above the list needs it too — App swaps
@@ -44,7 +43,6 @@ function Checkbox({checked}: {checked: boolean}) {
 
 export function TodoList({
   todos,
-  textColor,
   onToggle,
   selectedId,
   onSelect,
@@ -52,7 +50,7 @@ export function TodoList({
   if (todos.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={[styles.emptyText, textColor]}>
+        <Text style={styles.emptyText}>
           Lasso some handwriting, then tap this plugin's button on the lasso
           toolbar.
         </Text>
@@ -88,12 +86,7 @@ export function TodoList({
               }
               delayLongPress={400}
               accessibilityState={{selected: item.id === selectedId}}>
-              <Text
-                style={[
-                  styles.rowText,
-                  textColor,
-                  item.done && styles.rowTextDone,
-                ]}>
+              <Text style={[styles.rowText, item.done && styles.rowTextDone]}>
                 {item.text}
               </Text>
             </Pressable>
@@ -169,6 +162,7 @@ const styles = StyleSheet.create({
   },
   rowText: {
     fontSize: 18,
+    color: '#000000',
   },
   rowTextDone: {
     textDecorationLine: 'line-through',
@@ -184,5 +178,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
+    color: '#000000',
   },
 });
