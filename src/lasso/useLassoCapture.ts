@@ -22,6 +22,16 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
   // filesystem to create it once per plugin session, not on every capture.
   const stickersDirRef = useRef<string | null>(null);
 
+  // `onCaptured` is a new function on every render, and each one sees the todo
+  // list as it was at that render. A capture takes a while (OCR), so by the
+  // time it finishes, the version the listener started with may be stale.
+  // Keeping the newest one in a ref means we always call the up-to-date one,
+  // and the listener below only has to be registered once.
+  const onCapturedRef = useRef(onCaptured);
+  useEffect(() => {
+    onCapturedRef.current = onCaptured;
+  });
+
   useEffect(() => {
     const ensureStickersDir = async (): Promise<string | null> => {
       if (stickersDirRef.current) {
@@ -131,7 +141,11 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
         captureLocation(),
       ]);
 
-      onCaptured({text: textRes.result ?? '', stickerPath, ...location});
+      onCapturedRef.current({
+        text: textRes.result ?? '',
+        stickerPath,
+        ...location,
+      });
       setStatus('idle');
     };
 
@@ -144,9 +158,7 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
     });
 
     return () => subscription.remove();
-    // `onCaptured` must be stable (e.g. wrapped in useCallback by the caller) so this
-    // effect registers the listener once rather than on every render.
-  }, [onCaptured]);
+  }, []);
 
   return {status, errorMessage};
 }
