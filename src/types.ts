@@ -11,25 +11,26 @@ export type ApiResponse<T> = {
 // What one lasso capture produces: the OCR'd text, a path to a saved .sticker
 // file holding the original ink (Supernote's own ink format, not a raster
 // image), and where it came from — all best-effort, null if unavailable.
-// notePath/page/rect exist to support future work (persisting into the note,
-// drawing a synced checkbox at the capture's location) — nothing reads them yet.
+// notePath/page/rect also locate the checkbox drawn next to the handwriting.
 export type Capture = {
   text: string;
   stickerPath: string | null;
   notePath: string | null;
   page: number | null;
   rect: Rect | null;
+  // `userData` tag of the ☐ drawn in the note (src/note/checkbox.ts); null
+  // when none could be drawn.
+  checkboxTag: string | null;
 };
 
 export type TodoItem = {
   id: string;
   text: string;
-  // Milestone step 4: the plugin's half of the checked state. The note's half
-  // (a mark on the page) isn't built yet — see CLAUDE.md — so for now this is
-  // the only place "done" is recorded.
+  // The plugin's half of the checked state; the note's half is the checkbox.
   done: boolean;
   stickerPath: string | null;
   notePath: string | null;
   page: number | null;
   rect: Rect | null;
+  checkboxTag: string | null;
 };

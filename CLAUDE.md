@@ -24,6 +24,7 @@ This is where the app is heading. Use it to avoid painting us into a corner, but
 of it until the milestone below is done.
 
 **1. Capture and organise.**
+
 - Select handwriting → it becomes a todo (works today).
 - **Quick add:** the todo lands in an **Inbox**, to be sorted later.
 - **Detailed add:** set the time horizon straight away, so it lands in the right place directly.
@@ -35,16 +36,19 @@ of it until the milestone below is done.
 - Later still: **projects**.
 
 **2. Overview, inspired by Things, adapted for e-ink.**
+
 - A sidebar (maybe collapsible) with **Inbox, Today, This Week, This Month, Upcoming**.
 - Much of what makes Things feel good relies on dragging and a fast screen. The Nomad has
   neither, so this needs trying out on-device rather than designing in the abstract.
 
 **3. The note shows what's been captured.**
+
 - A **checkbox to the left of the handwritten task**, its state synced with the app. Maybe also a
   dashed underline or similar.
 - Flipping through a daily log, I should see at a glance which tasks are already in the app.
 
 **4. Import from the app into a note.**
+
 - Open a new page and import e.g. **today's todos**.
 - Either as the original handwriting (the saved `.sticker`) or as typed text.
 
@@ -78,15 +82,17 @@ Steps 1–3 are done and work on-device. Todos persist across restarts and reins
 Step 4 is half done:
 
 - **Plugin side: done.** Checkbox in the list, `done` is saved.
-- **Note side: not built yet.** What's known:
-  - Anchoring is solved: a **stroke link** (`setLassoStrokeLink`) follows the handwriting and
-    can be found again later.
-  - The plugin can change the note without it being open (`modifyElements`).
-  - Open question: **what the mark on the page should look like.** A stroke link is tappable
-    and opens a browser search, so it isn't shippable as-is.
+- **Note side: not built yet, but the mark is decided and proven by the probe.**
+  - The mark is a **text element holding `☐`/`☑`**, tagged with `userData` (the approach from
+    the collapse-expand plugin). It survives restarts and toggles by path with `modifyElements`.
+  - Requires firmware **≥ 3.29.45**: older firmware drops `userData` on read.
+  - The stroke link is no longer needed (it opened a browser search on tap). Trade-off: the box
+    doesn't follow handwriting that gets moved.
   - All the details and dead ends are in `docs/api-notes.md`.
 
-**Next step:** survey what other community plugins draw on the page, then decide on the mark.
+**Next step:** at capture time, insert a tagged `☐` to the left of the lassoed handwriting, and
+store the tag on the `TodoItem`. Then: ticking in the list toggles the box. Later: a finger tap on
+the box (`registerMotionListener`, as collapse-expand does) toggles the todo.
 
 ## Build & deploy
 
@@ -101,14 +107,12 @@ Step 4 is half done:
 
 ## How I want you to work with me
 
-I know web development (mostly Vue) but I'm **new to React Native**, rusty on React and JS syntax,
+I know some web development (mostly Vue) but I'm **new to React Native**, rusty on React and JS syntax,
 and new to the Supernote plugin API.
 
-- **Explain what you're doing and why.** When something is React- or RN-specific, say how it
-  differs from what I'd expect on the web.
+- **Explain what you're doing and why.** Explain to me as you would to a beginner. When something is React- or RN-specific, say how it differs from what I'd expect on the web.
 - **One concept at a time.** A small change I understand beats a big one I don't.
-- **Keep the flow explicit.** Prefer code that reads top to bottom (e.g. call save where the
-  change happens) over things that happen implicitly somewhere else.
+- **Keep the flow explicit.**
 - **Keep comments short.** Say why, not the history of how we got here.
 
 ## UI

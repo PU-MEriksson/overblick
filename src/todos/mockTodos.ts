@@ -22,6 +22,7 @@ export const MOCK_TODOS: TodoItem[] = [
     notePath: null,
     page: null,
     rect: null,
+    checkboxTag: null,
   },
   {
     id: 'mock-2',
@@ -31,6 +32,7 @@ export const MOCK_TODOS: TodoItem[] = [
     notePath: null,
     page: null,
     rect: null,
+    checkboxTag: null,
   },
   {
     id: 'mock-3',
@@ -42,6 +44,7 @@ export const MOCK_TODOS: TodoItem[] = [
     notePath: null,
     page: null,
     rect: null,
+    checkboxTag: null,
   },
   {
     id: 'mock-4',
@@ -51,5 +54,6 @@ export const MOCK_TODOS: TodoItem[] = [
     notePath: null,
     page: null,
     rect: null,
+    checkboxTag: null,
   },
 ];

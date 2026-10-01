@@ -165,3 +165,64 @@ export async function loadLinkRecord(): Promise<LinkRecord | null> {
 export async function clearLinkRecord(): Promise<void> {
   await AsyncStorage.removeItem(LINK_KEY);
 }
+
+// ---------------------------------------------------------------------------
+// Text-box checkbox experiment
+//
+// The collapse-expand plugin keeps all its state in `userData` on a text
+// element and reports it surviving restarts. That contradicts our earlier
+// geometry probe, so this record re-asks the question with their recipe.
+// ---------------------------------------------------------------------------
+
+const BOX_KEY = 'overblick:probe:lastBox';
+const BOX_SCHEMA_VERSION = 1;
+
+export type BoxRecord = {
+  /** The `userData` tag stamped on the text element. This is what's under test. */
+  tag: string;
+  notePath: string;
+  page: number;
+  createdAt: string;
+};
+
+type StoredBoxDocument = {
+  schemaVersion: number;
+  record: BoxRecord;
+};
+
+export async function saveBoxRecord(record: BoxRecord): Promise<void> {
+  const document: StoredBoxDocument = {
+    schemaVersion: BOX_SCHEMA_VERSION,
+    record,
+  };
+  await AsyncStorage.setItem(BOX_KEY, JSON.stringify(document));
+}
+
+export async function loadBoxRecord(): Promise<BoxRecord | null> {
+  const raw = await AsyncStorage.getItem(BOX_KEY);
+  if (raw === null) {
+    return null;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null;
+  }
+
+  const document = parsed as Partial<StoredBoxDocument>;
+  if (document.schemaVersion !== BOX_SCHEMA_VERSION || !document.record) {
+    return null;
+  }
+
+  return document.record;
+}
+
+export async function clearBoxRecord(): Promise<void> {
+  await AsyncStorage.removeItem(BOX_KEY);
+}

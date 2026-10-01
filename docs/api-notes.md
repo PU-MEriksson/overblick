@@ -220,6 +220,52 @@ Copied from a native straight line; guessed values did not work.
 notes cannot operate on layers". Ordinary notes report layer 0 "Main layer", visible. Step 4 will
 have to either special-case recognition notes or not offer checkboxes there.
 
+### `userData` works on firmware 3.29.45 — the loss was a firmware bug
+
+Supersedes the "Don't try to tag them" conclusion below, for `userData` only (`uuid` is still a
+per-read handle).
+
+**Confirmed on-device 2026-10-01, Nomad on Chauvet 3.29.45 Beta, sn-plugin-lib 0.1.65**, with the
+probe's T1/T2/T3 (`src/probe/AnchorProbe.tsx`):
+
+- A `TYPE_TEXT` element with `textContentFull: '☐'` and a `userData` tag, inserted via
+  `PluginFileAPI.insertElements`, **keeps its tag across a full device restart**.
+- **Toggling works by path:** find the element by `userData`, set `textBox.textContentFull = '☑'`
+  (and `pageNum`), `PluginFileAPI.modifyElements`, `reloadFile`. The glyph changes on the page and
+  the tag survives the modify.
+- The Nomad's font renders both `☐` and `☑` in a text box.
+- So the checkbox can be its own tagged element; no stroke link (and no browser-search-on-tap)
+  needed. Trade-off: unlike a stroke link, it does not follow handwriting that gets moved.
+- **`PluginCommAPI.getLassoRect()` is in the same screen-px space as `textBox.textRect`.**
+  Confirmed on-device 2026-10-01: a box placed from the lasso rect landed right next to the
+  handwriting. At box size 80 / font 54, simply centring on the lasso rect looks right (no
+  vertical offset needed — the smaller 60 / 40 box had looked slightly high).
+
+Background, from before the update:
+
+- Re-tested on-device 2026-10-01 with collapse-expand's exact recipe (`createElement(TYPE_TEXT)`
+  → `userData` → `PluginFileAPI.insertElements` by path, `saveCurrentNote` only *before*). Same
+  result: the text box renders, but `getElements` returns it with **empty `userData` immediately**,
+  no restart needed.
+- The collapse-expand plugin (`github.com/vincentaravantinos/supernote-collapse-expand`, their
+  `BUGS/B-016.md`) hit the identical symptom: `getElements`, `getElement` and `getLassoElements`
+  return no `userData` for any element type, right after writing it. They traced it to firmware
+  **3.29.43 (Manta/Nomad) / 2.26.40 (A5X/A6X)**, reported it (r/Supernote_dev post `1w44uvs`), and
+  say Ratta **fixed it in 3.29.44 / 2.26.41**, after which their whole plugin (all state in
+  `userData`, payloads up to 425 KB) round-trips fine. Community evidence; not yet confirmed on
+  our Nomad.
+- The `sn-plugin-lib` JS layer passes elements to native untouched (`PluginFileAPI.insertElements`
+  → `NativePluginAPI.insertElements`), so nothing on the JS side strips it — it's the firmware.
+- Malin read the release notes (Reddit isn't fetchable from Claude Code — WebFetch and curl are
+  both refused): the **Chauvet 3.29.45 Beta for Manta/Nomad** notes
+  (r/Supernote_beta `1wfueux`) explicitly list the `getElements`-can't-retrieve-`userData` fix.
+  So for the Nomad, 3.29.45 is the version to trust, not collapse-expand's 3.29.44.
+- The 3.29.44 preview post (r/Supernote_dev `1w57c45`) says to run
+  `yarn upgrade sn-plugin-lib --latest`. Checked 2026-10-01: `latest` on npm is **0.1.65**, which
+  we already have — no library change needed for this fix.
+- **Consequence: the plugin needs firmware ≥ 3.29.45** on Manta/Nomad. On older firmware the tag
+  silently reads back empty and the plugin will never find its own checkboxes.
+
 ### Answered — elements have NO stable identity. Don't try to tag them.
 
 Tested on-device 2026-09-01 with `src/probe/AnchorProbe.tsx` ("B: pageElements" stamps

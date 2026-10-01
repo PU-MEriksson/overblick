@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {PluginManager, PluginCommAPI, FileUtils} from 'sn-plugin-lib';
 import type {Rect} from 'sn-plugin-lib';
 import type {ApiResponse, Capture} from '../types';
+import {insertCheckbox} from '../note/checkbox';
 
 // Matches the "Lasso Button" registered in index.js (type 2 = lasso toolbar button).
 const LASSO_BUTTON_ID = 200;
@@ -69,8 +70,7 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
     };
 
     // Best-effort, same as the sticker: which note/page/rect this capture came
-    // from isn't used yet, but later work (persisting into the note, drawing a
-    // synced checkbox) will need it, so we record it now rather than lose it.
+    // from. Also where the checkbox gets drawn.
     const captureLocation = async (): Promise<{
       notePath: string | null;
       page: number | null;
@@ -141,10 +141,19 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
         captureLocation(),
       ]);
 
+      // Last, because it reloads the page, which can drop the lasso selection
+      // the calls above read from. Best-effort: no box still keeps the todo.
+      const {notePath, page, rect} = location;
+      const checkboxTag =
+        notePath !== null && page !== null && rect !== null
+          ? await insertCheckbox(notePath, page, rect)
+          : null;
+
       onCapturedRef.current({
         text: textRes.result ?? '',
         stickerPath,
         ...location,
+        checkboxTag,
       });
       setStatus('idle');
     };

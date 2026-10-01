@@ -13,7 +13,8 @@ const STORAGE_KEY = 'overblick:todos';
 // the very first thing we ever write.
 //
 // 1 -> 2 (2026-09-01): added `done` for the milestone step 4 checkbox.
-const SCHEMA_VERSION = 2;
+// 2 -> 3 (2026-10-01): added `checkboxTag`, the ☐ drawn in the note.
+const SCHEMA_VERSION = 3;
 
 type StoredDocument = {
   schemaVersion: number;
@@ -88,5 +89,7 @@ function migrate(todos: TodoItem[], from: number): TodoItem[] {
     // existed was, by definition, not yet ticked off. This has to come *after*
     // the spread, or a stored `done: undefined` would win over the default.
     done: todo.done ?? false,
+    // Before version 3 nothing was drawn in the note, so there's no box to find.
+    checkboxTag: todo.checkboxTag ?? null,
   }));
 }

@@ -27,12 +27,15 @@ import {
   PluginNoteAPI,
 } from 'sn-plugin-lib';
 import type {ApiResponse} from '../types';
-import type {LinkRecord, LinkRect, ProbeRecord} from './probeRecord';
+import type {BoxRecord, LinkRecord, LinkRect, ProbeRecord} from './probeRecord';
 import {
+  clearBoxRecord,
   clearLinkRecord,
   clearProbeRecord,
+  loadBoxRecord,
   loadLinkRecord,
   loadProbeRecord,
+  saveBoxRecord,
   saveLinkRecord,
   saveProbeRecord,
 } from './probeRecord';
@@ -74,6 +77,16 @@ const NATIVE_PEN = {type: 10, color: 0, width: 500};
 // Whether any tolerance is needed at all is exactly what "find my square"
 // measures — if points come back verbatim this can drop to 0.
 const MATCH_TOLERANCE_PX = 4;
+
+// Text-box checkbox, in screen px like the square. Placed below the square so
+// the two experiments can't overlap. Size and font copied from collapse-expand's
+// icon (50px box, font 40), slightly enlarged for a finger target.
+const BOX_LEFT = 300;
+const BOX_TOP = 800;
+const BOX_SIZE = 60;
+const BOX_FONT_SIZE = 40;
+const GLYPH_OPEN = '☐';
+const GLYPH_DONE = '☑';
 
 export function AnchorProbe() {
   const [log, setLog] = useState<string[]>([]);
@@ -1427,15 +1440,285 @@ export function AnchorProbe() {
     step,
   ]);
 
+  // -------------------------------------------------------------------------
+  // Text-box checkbox experiment
+  //
+  // Copies the collapse-expand plugin's recipe: the mark is a TEXT element
+  // holding one glyph, tagged via `userData`. Their whole plugin relies on
+  // userData persisting; our geometry probe (B) said it doesn't. The two
+  // differences we suspect, both reproduced here on purpose:
+  //   - insert by path (PluginFileAPI.insertElements), not insertPageElements
+  //   - saveCurrentNote BEFORE the write and never after — they found a save
+  //     afterwards pushes the stale cached note back over a file write.
+  // -------------------------------------------------------------------------
+
+  const boxRef = useRef<BoxRecord | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadBoxRecord()
+      .then(record => {
+        if (cancelled) {
+          return;
+        }
+        boxRef.current = record;
+        if (record) {
+          say(`box tag on record: ${record.tag}`);
+        }
+      })
+      .catch((error: Error) => {
+        if (!cancelled) {
+          say(`loadBoxRecord failed: ${error.message}`);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [say]);
+
+  /**
+   * Lists every text element on the page and returns the one carrying `tag`.
+   * The full listing is printed so "LOST" can be told apart from "the box is
+   * there but its userData came back empty".
+   */
+  const findBoxOnPage = useCallback(
+    async (
+      notePath: string,
+      page: number,
+      tag: string,
+    ): Promise<Record<string, unknown> | null> => {
+      const res = (await PluginFileAPI.getElements(
+        page,
+        notePath,
+      )) as ApiResponse<Record<string, unknown>[]>;
+      report('getElements', res);
+      if (!res?.success || !res.result) {
+        return null;
+      }
+      const texts = res.result.filter(
+        el => Number(el.type) === Element.TYPE_TEXT,
+      );
+      say(`${String(texts.length)} text element(s) on the page`);
+
+      let match: Record<string, unknown> | null = null;
+      for (const el of texts) {
+        const data = String(el.userData ?? '');
+        const box = (el.textBox ?? {}) as {
+          textContentFull?: string | null;
+          textRect?: {left: number; top: number; right: number; bottom: number};
+        };
+        const mine = data === tag;
+        say(
+          `  #${String(el.numInPage)} ${mine ? '<-- OURS ' : ''}` +
+            `text="${String(box.textContentFull)}"`,
+        );
+        say(`     userData=${data === '' ? '(empty)' : data}`);
+        say(`     rect=${JSON.stringify(box.textRect ?? null)}`);
+        if (mine) {
+          match = el;
+        }
+      }
+      return match;
+    },
+    [report, say],
+  );
+
+  const insertBox = useCallback(async () => {
+    say('=== T1: insert ☐ text box (collapse-expand recipe) ===');
+    const target = await currentPage();
+    if (!target) {
+      return;
+    }
+
+    // Before the write, never after (see section comment).
+    await save();
+
+    let element: Record<string, unknown> | null = null;
+    await step('createElement(TEXT)', async () => {
+      const res = (await PluginCommAPI.createElement(
+        Element.TYPE_TEXT,
+      )) as ApiResponse<Record<string, unknown>>;
+      report('createElement', res);
+      if (res?.success && res.result) {
+        element = res.result;
+      }
+    });
+    if (!element) {
+      return;
+    }
+    const el: Record<string, unknown> = element;
+
+    const tag = `overblick:box:${Date.now()}`;
+    el.userData = tag;
+    el.pageNum = target.page;
+    // Every field set explicitly, as collapse-expand does, so the glyph doesn't
+    // inherit whatever text style the user last used.
+    el.textBox = {
+      fontSize: BOX_FONT_SIZE,
+      textContentFull: GLYPH_OPEN,
+      textRect: {
+        left: BOX_LEFT,
+        top: BOX_TOP,
+        right: BOX_LEFT + BOX_SIZE,
+        bottom: BOX_TOP + BOX_SIZE,
+      },
+      textAlign: 0,
+      textBold: 0,
+      textItalics: 0,
+      textFrameWidthType: 0,
+      textFrameStyle: 0,
+      textEditable: 0,
+    };
+    say(`userData=${tag}`);
+    say(`box px (${String(BOX_LEFT)},${String(BOX_TOP)}) size ${String(BOX_SIZE)}`);
+
+    let inserted = false;
+    await step('insertElements', async () => {
+      const res = (await PluginFileAPI.insertElements(
+        target.notePath,
+        target.page,
+        [el],
+      )) as ApiResponse<boolean>;
+      report('insertElements', res);
+      inserted = res?.success === true;
+    });
+
+    await step('recycleElement', async () => {
+      PluginCommAPI.recycleElement(String(el.uuid));
+    });
+    // Reload so the page shows the box and the read below isn't stale. No save.
+    await reload();
+
+    if (!inserted) {
+      say('insert did not succeed — nothing recorded.');
+      return;
+    }
+
+    // Immediate read-back: if the tag is already gone here, the restart test
+    // is moot and the problem is the write itself.
+    await step('immediate read-back', async () => {
+      const found = await findBoxOnPage(target.notePath, target.page, tag);
+      say('--- verdict (before restart) ---');
+      say(found ? '  userData PRESENT' : '  userData MISSING already');
+      say('---------------');
+    });
+
+    await step('saveBoxRecord', async () => {
+      const record: BoxRecord = {
+        tag,
+        notePath: target.notePath,
+        page: target.page,
+        createdAt: new Date().toISOString(),
+      };
+      await saveBoxRecord(record);
+      boxRef.current = record;
+      say('recorded. Look at the page: is a ☐ drawn?');
+      say('Then restart the Nomad and tap "T2: find box".');
+    });
+  }, [currentPage, findBoxOnPage, reload, report, save, say, step]);
+
+  const findBox = useCallback(async () => {
+    say('=== T2: find box (by path) ===');
+    const record = boxRef.current;
+    if (!record) {
+      say('No box on record — run "T1: insert ☐" first.');
+      return;
+    }
+    say(`hunting for ${record.tag}`);
+    say(`  page=${String(record.page)} note=${record.notePath}`);
+
+    await step('getElements', async () => {
+      const found = await findBoxOnPage(
+        record.notePath,
+        record.page,
+        record.tag,
+      );
+      say('--- verdict ---');
+      say(
+        found
+          ? `  userData SURVIVED (element #${String(found.numInPage)})`
+          : '  userData LOST — no text element carries the tag',
+      );
+      say('---------------');
+    });
+  }, [findBoxOnPage, say, step]);
+
+  /**
+   * Flips ☐ ↔ ☑ by path. Also checks the tag survives a modifyElements, since
+   * toggling is exactly the write the real feature will do most.
+   */
+  const toggleBox = useCallback(async () => {
+    say('=== T3: toggle ☐ / ☑ (modifyElements) ===');
+    const record = boxRef.current;
+    if (!record) {
+      say('No box on record — run "T1: insert ☐" first.');
+      return;
+    }
+
+    await step('toggle', async () => {
+      const res = (await PluginFileAPI.getElements(
+        record.page,
+        record.notePath,
+      )) as ApiResponse<Record<string, unknown>[]>;
+      if (!res?.success || !res.result) {
+        report('getElements', res);
+        return;
+      }
+      const el = res.result.find(e => String(e.userData ?? '') === record.tag);
+      if (!el) {
+        say('our box is not on this page (tag not found)');
+        return;
+      }
+      const box = el.textBox as {textContentFull: string | null};
+      const current = box.textContentFull;
+      const wanted = current === GLYPH_DONE ? GLYPH_OPEN : GLYPH_DONE;
+      say(`#${String(el.numInPage)} "${String(current)}" -> "${wanted}"`);
+
+      box.textContentFull = wanted;
+      el.pageNum = record.page;
+      const modRes = (await PluginFileAPI.modifyElements(
+        record.notePath,
+        record.page,
+        [el],
+      )) as ApiResponse<number[]>;
+      report('modifyElements', modRes);
+      say(`  modified indices=${JSON.stringify(modRes?.result ?? null)}`);
+
+      await reload();
+
+      const after = await findBoxOnPage(
+        record.notePath,
+        record.page,
+        record.tag,
+      );
+      say('--- verdict ---');
+      if (!after) {
+        say('  tag LOST after modifyElements');
+      } else {
+        const now = (after.textBox as {textContentFull: string | null})
+          .textContentFull;
+        say('  tag kept after modifyElements');
+        say(
+          now === wanted
+            ? `  glyph CHANGED to "${wanted}"`
+            : `  glyph still "${String(now)}", wanted "${wanted}"`,
+        );
+      }
+      say('---------------');
+    });
+  }, [findBoxOnPage, reload, report, say, step]);
+
   /** Starts the experiment over without reinstalling — storage outlives that. */
   const forgetRecord = useCallback(async () => {
     say('=== forget record ===');
     await step('clearProbeRecord', async () => {
       await clearProbeRecord();
       await clearLinkRecord();
+      await clearBoxRecord();
       recordRef.current = null;
       linkRef.current = null;
-      say('cleared (square and link).');
+      boxRef.current = null;
+      say('cleared (square, link and box).');
     });
   }, [say, step]);
 
@@ -1453,6 +1736,9 @@ export function AnchorProbe() {
 
   const buttons: {label: string; onPress: () => void}[] = [
     {label: '1. Permissions', onPress: fire('Permissions', askPermissions)},
+    {label: 'T1: insert ☐', onPress: fire('T1', insertBox)},
+    {label: 'T2: find box', onPress: fire('T2', findBox)},
+    {label: 'T3: toggle ☐/☑', onPress: fire('T3', toggleBox)},
     {label: '2. Diagnose', onPress: fire('Diagnose', diagnose)},
     {label: '3. Read back', onPress: fire('Read back', readBack)},
     {label: '4. Dump details', onPress: fire('Dump', dumpDetails)},
@@ -1493,8 +1779,8 @@ export function AnchorProbe() {
           <Text style={styles.logLine}>
             Lasso some handwriting, tap the lasso toolbar button to get here,
             then 1 (permissions).{'\n'}
-            Style flip: L (if no link yet) → 8. If 8 fails, try 9. Each tap
-            toggles dashed ↔ solid.
+            Text-box checkbox: T1 → look at the page → restart the Nomad → T2
+            → T3 (toggle) → restart → T2 again.
           </Text>
         ) : (
           log.map((line, i) => (
