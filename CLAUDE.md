@@ -69,7 +69,9 @@ Recurring tasks, tags, due dates and filters are out of scope. Do not build ahea
 - `src/todos/todoStorage.ts`: reads/writes the list to AsyncStorage (key `overblick:todos`,
   wrapped in a `schemaVersion` envelope; older data is migrated, never refused).
 - `src/lasso/useLassoCapture.ts`: the lasso button (id `200`, registered in `index.js`) →
-  OCR + `.sticker` ink snapshot + note path/page/rect.
+  OCR + `.sticker` ink snapshot + note path/page/rect + the checkbox in the note.
+- `src/note/checkbox.ts`: everything that writes into a note: permissions, drawing the `☐`
+  (`insertCheckbox`) and flipping it (`setCheckbox`).
 - `src/types.ts`: `Capture` and `TodoItem`.
 - `src/probe/`: temporary test screen for note-writing experiments (`SHOW_ANCHOR_PROBE` in
   `App.tsx`). Delete once step 4 is finished.
@@ -79,20 +81,20 @@ Recurring tasks, tags, due dates and filters are out of scope. Do not build ahea
 
 Steps 1–3 are done and work on-device. Todos persist across restarts and reinstalls.
 
-Step 4 is half done:
+Step 4: plugin → note works on-device; note → plugin isn't built yet.
 
-- **Plugin side: done.** Checkbox in the list, `done` is saved.
-- **Note side: not built yet, but the mark is decided and proven by the probe.**
-  - The mark is a **text element holding `☐`/`☑`**, tagged with `userData` (the approach from
-    the collapse-expand plugin). It survives restarts and toggles by path with `modifyElements`.
-  - Requires firmware **≥ 3.29.45**: older firmware drops `userData` on read.
-  - The stroke link is no longer needed (it opened a browser search on tap). Trade-off: the box
-    doesn't follow handwriting that gets moved.
-  - All the details and dead ends are in `docs/api-notes.md`.
+- **Capture draws the box.** A text element holding `☐`, left of the handwriting, tagged with
+  `userData`; the tag is stored as `TodoItem.checkboxTag`. At the margin it overlaps the
+  writing; that's accepted.
+- **Ticking in the list flips the box** to `☑` / `☐`, also in a note that isn't open.
+- Requires firmware **≥ 3.29.45**: older firmware drops `userData` on read.
+- The box doesn't follow handwriting that gets moved (the stroke link did, but tapping it opened a
+  browser search).
+- Todos captured before the box existed have `checkboxTag: null` and simply have no box.
+- All the details and dead ends are in `docs/api-notes.md`.
 
-**Next step:** at capture time, insert a tagged `☐` to the left of the lassoed handwriting, and
-store the tag on the `TodoItem`. Then: ticking in the list toggles the box. Later: a finger tap on
-the box (`registerMotionListener`, as collapse-expand does) toggles the todo.
+**Next step:** a finger tap on the box in the note ticks the todo (`registerMotionListener`, as
+collapse-expand does). Then delete `src/probe/`.
 
 ## Build & deploy
 

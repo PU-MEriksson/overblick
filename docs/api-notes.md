@@ -234,6 +234,9 @@ probe's T1/T2/T3 (`src/probe/AnchorProbe.tsx`):
   (and `pageNum`), `PluginFileAPI.modifyElements`, `reloadFile`. The glyph changes on the page and
   the tag survives the modify.
 - The Nomad's font renders both `☐` and `☑` in a text box.
+- **The toggle also works on a note that isn't open** (confirmed 2026-10-01 via the real feature,
+  `setCheckbox` in `src/note/checkbox.ts`): ticking a todo from another note's page flipped its
+  box, visible when that note was opened afterwards.
 - So the checkbox can be its own tagged element; no stroke link (and no browser-search-on-tap)
   needed. Trade-off: unlike a stroke link, it does not follow handwriting that gets moved.
 - **`PluginCommAPI.getLassoRect()` is in the same screen-px space as `textBox.textRect`.**
