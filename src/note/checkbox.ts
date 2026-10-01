@@ -121,13 +121,72 @@ export async function insertCheckbox(
       return null;
     }
 
-    // Redraw the page so the box shows up now, not on the next page turn.
-    await Promise.race([
-      PluginCommAPI.reloadFile(),
-      new Promise(resolve => setTimeout(resolve, RELOAD_TIMEOUT_MS)),
-    ]);
+    await redrawPage();
     return tag;
   } catch {
     return null;
   }
+}
+
+/**
+ * Sets the box to ☑ (done) or ☐. Works whether or not its note is open.
+ * Returns false if the box couldn't be found or changed — e.g. the user erased
+ * it — which is harmless: the todo list is the source of truth.
+ */
+export async function setCheckbox(
+  notePath: string,
+  page: number,
+  tag: string,
+  done: boolean,
+): Promise<boolean> {
+  try {
+    if (!(await ensureNotePermissions())) {
+      return false;
+    }
+
+    // Same rule as inserting: save before writing by path, never after.
+    await PluginNoteAPI.saveCurrentNote();
+
+    const res = (await PluginFileAPI.getElements(
+      page,
+      notePath,
+    )) as ApiResponse<Record<string, unknown>[]>;
+    if (!res?.success || !res.result) {
+      return false;
+    }
+    const elements = res.result;
+
+    let changed = false;
+    const box = elements.find(el => el.userData === tag);
+    if (box) {
+      (box.textBox as {textContentFull: string}).textContentFull = done
+        ? GLYPH_DONE
+        : GLYPH_OPEN;
+      box.pageNum = page;
+      const modified = (await PluginFileAPI.modifyElements(notePath, page, [
+        box,
+      ])) as ApiResponse<number[]>;
+      changed = modified?.success === true;
+    }
+
+    // Every element getElements returned lives in the native cache.
+    for (const el of elements) {
+      PluginCommAPI.recycleElement(String(el.uuid));
+    }
+
+    if (changed) {
+      await redrawPage();
+    }
+    return changed;
+  } catch {
+    return false;
+  }
+}
+
+/** Redraws the open note so a change shows now, not on the next page turn. */
+async function redrawPage(): Promise<void> {
+  await Promise.race([
+    PluginCommAPI.reloadFile(),
+    new Promise(resolve => setTimeout(resolve, RELOAD_TIMEOUT_MS)),
+  ]);
 }

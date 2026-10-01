@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {FileUtils} from 'sn-plugin-lib';
 import type {Capture, TodoItem} from '../types';
 import {loadTodos, saveTodos} from './todoStorage';
+import {setCheckbox} from '../note/checkbox';
 import {MOCK_TODOS} from './mockTodos';
 
 // TEMPORARY — see mockTodos.ts. Flip to false to get the empty list back.
@@ -70,11 +71,21 @@ export function useTodos() {
     commit([...todos, {id: createId(), done: false, ...capture}]);
   }
 
-  // Eventually this is also where the note's mark gets updated.
+  // Updates the list first, then mirrors it onto the box in the note. Not
+  // awaited: the list shouldn't wait on a note write, and if the box is gone
+  // the list is still right.
   function toggleTodo(id: string) {
-    commit(
-      todos.map(todo => (todo.id === id ? {...todo, done: !todo.done} : todo)),
-    );
+    const todo = todos.find(other => other.id === id);
+    if (!todo) {
+      return;
+    }
+    const done = !todo.done;
+    commit(todos.map(other => (other.id === id ? {...other, done} : other)));
+
+    const {notePath, page, checkboxTag} = todo;
+    if (notePath !== null && page !== null && checkboxTag !== null) {
+      setCheckbox(notePath, page, checkboxTag, done);
+    }
   }
 
   // The OCR gets words wrong; this is how the user fixes one.
