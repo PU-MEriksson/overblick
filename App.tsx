@@ -10,14 +10,9 @@ import {PluginManager} from 'sn-plugin-lib';
 import {useLassoCapture} from './src/lasso/useLassoCapture';
 import {useTodos} from './src/todos/useTodos';
 import {TodoList} from './src/todos/TodoList';
-import {AnchorProbe} from './src/probe/AnchorProbe';
 import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
-
-// TEMPORARY — flip to true to swap the list for the note-writing test screen.
-// Delete along with src/probe/ once step 4 is finished.
-const SHOW_ANCHOR_PROBE = false;
 
 /**
  * Plugin View
@@ -80,9 +75,6 @@ function App(): React.JSX.Element {
 
   // What goes under the header. The first matching case wins.
   const renderBody = () => {
-    if (SHOW_ANCHOR_PROBE) {
-      return <AnchorProbe />;
-    }
     if (isBusy) {
       return (
         <View style={styles.centered}>

@@ -64,8 +64,10 @@ Recurring tasks, tags, due dates and filters are out of scope. Do not build ahea
 ## Where things are
 
 - `App.tsx`: the screen. Picks what to show (spinner, error, list, editor).
-- `src/todos/useTodos.ts`: the todo list and every change to it. Each change goes through
-  `commit()`, which updates state **and** saves.
+- `src/todos/todoStore.ts`: the one copy of the todo list and every change to it, outside
+  React so non-component code (the tap listener) shares it. Each change goes through
+  `commit()`, which updates the list **and** saves.
+- `src/todos/useTodos.ts`: how components read the store (`useSyncExternalStore`).
 - `src/todos/todoStorage.ts`: reads/writes the list to AsyncStorage (key `overblick:todos`,
   wrapped in a `schemaVersion` envelope; older data is migrated, never refused).
 - `src/lasso/useLassoCapture.ts`: the lasso button (id `200`, registered in `index.js`) →
@@ -73,28 +75,31 @@ Recurring tasks, tags, due dates and filters are out of scope. Do not build ahea
 - `src/note/checkbox.ts`: everything that writes into a note: permissions, drawing the `☐`
   (`insertCheckbox`) and flipping it (`setCheckbox`).
 - `src/types.ts`: `Capture` and `TodoItem`.
-- `src/probe/`: temporary test screen for note-writing experiments (`SHOW_ANCHOR_PROBE` in
-  `App.tsx`). Delete once step 4 is finished.
+- `src/note/boxTap.ts`: the plugin's only touch listener (registered in `index.js`). A finger
+  tap on a box in the note ticks its todo.
 - `docs/api-notes.md`: everything learned about the Supernote API and build tooling.
 
 ## Status
 
-Steps 1–3 are done and work on-device. Todos persist across restarts and reinstalls.
+**The milestone is done: all four steps work on-device.** Todos persist across restarts and
+reinstalls.
 
-Step 4: plugin → note works on-device; note → plugin isn't built yet.
+Step 4, how the checkbox works:
 
 - **Capture draws the box.** A text element holding `☐`, left of the handwriting, tagged with
   `userData`; the tag is stored as `TodoItem.checkboxTag`. At the margin it overlaps the
   writing; that's accepted.
 - **Ticking in the list flips the box** to `☑` / `☐`, also in a note that isn't open.
+- **A finger tap on the box ticks the todo**, with the plugin view closed or open. Pen taps are
+  ignored (they draw).
 - Requires firmware **≥ 3.29.45**: older firmware drops `userData` on read.
 - The box doesn't follow handwriting that gets moved (the stroke link did, but tapping it opened a
   browser search).
 - Todos captured before the box existed have `checkboxTag: null` and simply have no box.
-- All the details and dead ends are in `docs/api-notes.md`.
+- All the details and dead ends are in `docs/api-notes.md`. The test screen used to find them
+  (`src/probe/`) is deleted; it's in git history.
 
-**Next step:** a finger tap on the box in the note ticks the todo (`registerMotionListener`, as
-collapse-expand does). Then delete `src/probe/`.
+**Next step:** not decided yet. Pick from the vision above together with Malin.
 
 ## Build & deploy
 

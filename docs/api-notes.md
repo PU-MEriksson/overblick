@@ -438,6 +438,54 @@ Indices are **1-based**: `getElement(notePath, page, num)`'s doc says so, and th
 landed on element `#1` on a page whose only geometry was ours. An off-by-one here would delete
 the wrong element.
 
+## Touches: `registerMotionListener` — confirmed on-device 2026-10-01
+
+Tested with a temporary touch logger (since deleted) registered from `index.js`, on a Nomad, 3.29.45.
+
+- **Fires while the plugin view is closed**, for every touch on the screen, as long as the
+  listener is registered at plugin startup (`index.js`), not from a component.
+- **Module memory is shared** between that listener and the plugin view: touches recorded while
+  the view was closed were still in the module's array when the view opened. Same JS runtime.
+- **`x`/`y` are the same screen px as `textBox.textRect` and the lasso rect.** Three finger taps
+  on `☐` boxes all fell well inside their `textRect`; no offset, no scaling.
+- **`toolType` tells them apart: 1 = finger, 2 = pen** (as the types say). A pen tap is also
+  drawing, so only finger taps should act.
+- A finger tap's DOWN and UP report identical coordinates.
+- It **also reports taps on the Supernote's own UI** (toolbar at y≈27, sidebar buttons): there is
+  no flag for "native UI consumed this". Hit-testing against our boxes filters almost all of
+  these; a native menu drawn over a box can't be told apart (collapse-expand's `BUGS/B-008.md`).
+- Registration: `PluginManager.registerMotionListener(1, {onMsg})`. Use action 0 (DOWN) and
+  1 (UP); 2 (MOVE) floods while writing.
+
+### Inside the listener: call the API one call at a time, not with `Promise.all`
+
+Observed on-device 2026-10-01 (Nomad, 3.29.45), via a step trace in `src/note/boxTap.ts`:
+
+- With `Promise.all([getCurrentFilePath(), getCurrentPageNum()])` called from the motion
+  listener (plugin view closed), the tap handler **never resumed**. No error, no answer. Its
+  `busy` flag stayed set and every later tap was dropped.
+- The same two calls awaited **one after the other** answered at once (same millisecond in the
+  trace), and the whole tap — both calls, `getElements`, toggle — finished within a second.
+- The same `Promise.all` pattern works from the plugin view (`useLassoCapture` uses it), so this
+  looks specific to calls made from the listener. Observation, not a confirmed mechanism.
+  Collapse-expand also calls them sequentially from its tap handler.
+- Defence kept in `boxTap.ts`: every awaited call has an 8 s timeout, so a call that never
+  answers costs one tap instead of all of them.
+
+### Register only ONE listener per event — ids are `Date.now()`
+
+Found 2026-10-01 when the real tap handler (`src/note/boxTap.ts`) did nothing on-device while the
+probe's touch logger, registered right after it, kept recording.
+
+- In `sn-plugin-lib/src/PluginManager.ts`, `registerEventListener` (which `registerMotionListener`
+  and the pen-up listener go through) sets `const id = Date.now()` and stores the subscription in
+  a per-event `Map` keyed by that id.
+- Two registrations in the same millisecond, e.g. back-to-back calls in `index.js`, get the
+  **same id**, so the second `Map.set` **silently replaces** the first. No error, no warning;
+  the first listener just never fires.
+- Rule: one motion listener for the whole plugin (ours is in `boxTap.ts`), dispatching to
+  anything else that needs touches. Collapse-expand does the same.
+
 ## The native build needs JDK 21 — Android Studio's bundled JDK is too new
 
 - `./buildPlugin.sh` only invokes Gradle when a native module is present, so this doesn't bite

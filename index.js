@@ -7,10 +7,16 @@ import App from './App';
 import {name as appName} from './app.json';
 
 import {PluginManager} from 'sn-plugin-lib';
+import {startBoxTaps} from './src/note/boxTap';
 
 AppRegistry.registerComponent(appName, () => App);
 
 PluginManager.init();
+
+// A finger tap on a box in the note ticks its todo. Here rather than in a
+// component so it works while the plugin view is closed. Must stay the only
+// motion listener: see the comment in boxTap.ts.
+startBoxTaps();
 
 PluginManager.registerButton(1, ['NOTE', 'DOC'], {
   id: 100,
