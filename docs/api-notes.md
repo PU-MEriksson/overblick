@@ -486,6 +486,38 @@ probe's touch logger, registered right after it, kept recording.
 - Rule: one motion listener for the whole plugin (ours is in `boxTap.ts`), dispatching to
   anything else that needs touches. Collapse-expand does the same.
 
+### `event_pen_up`: what it delivers — confirmed on-device 2026-10-02
+
+Tested with a temporary probe (since deleted) on a Nomad, 3.29.45, plugin view closed.
+Registered with `PluginManager.registerEventListener('event_pen_up', 1, {onMsg})`; `msg` is an
+`Element[]` (the docs say so too).
+
+- **Ink:** fires once per stroke, after the motion listener's pen UP, with 1 element:
+  `type 0`, `stroke.penType 10` (the pen in use). A pen tap is a stroke too (5 points).
+- **Lasso:** also fires, with 1 element of `type 0` but **`penType 4`**. Filter it out by that.
+- **Eraser:** fires with **0 elements**.
+- **Stroke points are EMR, not screen px**: a tap at screen (129, 254) had points around
+  x 2138, y 10790. That's `PointUtils.emrPoint2Android` with the 1404 × 1872 page (EMR x runs
+  down the page, EMR y right-to-left). Reading them costs two native calls (`size`, `getRange`).
+- **Runs alongside `registerMotionListener`.** Different events have separate listener maps, so
+  the same-millisecond id clash below doesn't hit them; finger taps kept working.
+- A tick (✓) is about 45 × 20 px, the same size as a handwritten letter. Size alone can't tell
+  them apart; position (centred on a box) has to.
+- How `boxTap.ts` uses it: the motion listener's pen DOWN/MOVE/UP give the stroke's area in
+  screen px for free; `event_pen_up` only says whether it was ink. No points are read for
+  ordinary writing.
+- Deleting the tick stroke (**confirmed on-device 2026-10-02**: only the tick or dot vanished,
+  surrounding handwriting untouched, still gone after reopening):
+  `saveCurrentNote` → `PluginFileAPI.getElements` → compare the file's element at the pen-up
+  element's `numInPage` point by point → `PluginCommAPI.deletePageElements([numInPage], pageNum,
+  layerNum)` on the open note → `setCheckbox` (whose own save writes the deletion out). There is
+  no API to read the open note's elements, hence the save-and-read to verify.
+- The pen-up elements are released with `recycleElement` after each stroke, like any other.
+  Confirmed safe: ink written afterwards survives page turns and reopening.
+- **Undo history is cleared by our writes.** After ticking a box (finger or pen), Supernote's
+  undo does nothing, not even for strokes made before the tick. Most likely
+  `saveCurrentNote` / `reloadFile` reset it; not isolated which one.
+
 ### Event listeners crash the `yarn android` dev loop
 
 - Found 2026-10-02: `registerMotionListener` (any `registerEventListener`) in the standalone dev

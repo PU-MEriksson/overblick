@@ -14,7 +14,6 @@ import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
 import type {Horizon} from './src/types';
-
 /**
  * Plugin View
  * Shows the list of handwriting captured via lasso selections.

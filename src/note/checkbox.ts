@@ -57,7 +57,7 @@ export async function ensureNotePermissions(): Promise<boolean> {
  * margin it overlaps the writing; deliberate — the user leaves room when they
  * want a box.
  */
-function boxRectFor(lasso: Rect): Rect {
+export function boxRectFor(lasso: Rect): Rect {
   const middle = (lasso.top + lasso.bottom) / 2;
   const left = Math.max(0, Math.round(lasso.left - BOX_GAP - BOX_SIZE));
   const top = Math.max(0, Math.round(middle - BOX_SIZE / 2 + BOX_NUDGE_DOWN));
@@ -178,6 +178,26 @@ export async function setCheckbox(
       await redrawPage();
     }
     return changed;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Deletes the pen stroke that ticked a box, so only the ☑ is left. Works on the
+ * open note, not by path: the next `saveCurrentNote` (in `setCheckbox`) writes
+ * it out, which keeps the "save before writing by path" rule. The caller must
+ * have checked this index really is that stroke: a wrong one would delete the
+ * user's handwriting.
+ */
+export async function deleteTickStroke(stroke: Element): Promise<boolean> {
+  try {
+    const res = (await PluginCommAPI.deletePageElements(
+      [stroke.numInPage],
+      stroke.pageNum,
+      stroke.layerNum,
+    )) as ApiResponse<boolean>;
+    return res?.success === true;
   } catch {
     return false;
   }

@@ -77,8 +77,8 @@ projects or filters.
 - `src/note/checkbox.ts`: everything that writes into a note: permissions, drawing the `☐`
   (`insertCheckbox`) and flipping it (`setCheckbox`).
 - `src/types.ts`: `Capture` and `TodoItem`.
-- `src/note/boxTap.ts`: the plugin's only touch listener (registered in `index.js`). A finger
-  tap on a box in the note ticks its todo.
+- `src/note/boxTap.ts`: the plugin's only motion and pen-up listeners (registered in
+  `index.js`). A finger tap, pen tap or small pen tick on a box in the note ticks its todo.
 - `docs/api-notes.md`: everything learned about the Supernote API and build tooling.
 
 ## What works today
@@ -91,8 +91,14 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
   with `userData` (stored as `TodoItem.checkboxTag`). At the margin it overlaps the writing;
   that's accepted.
 - **Ticking stays in sync both ways.** Ticking in the list flips the box to `☑` / `☐`, also in a
-  note that isn't open. A finger tap on the box ticks the todo, with the plugin view open or
-  closed. Pen taps are ignored (they draw).
+  note that isn't open. A finger tap on the box toggles the todo, with the plugin view open or
+  closed.
+- **Pen tick** *(confirmed on-device 2026-10-02)*: a pen tap or a small stroke (≤ 120 px)
+  centred on a ☐ ticks the todo. Pen only ticks, never unticks, so a stray stroke can't undo a
+  task. Lasso and eraser are ignored.
+- **The tick's ink is deleted** *(confirmed on-device 2026-10-02)*, so only the ☑
+  shows (visible tick strokes looked messy). Only after checking the element at that index is
+  exactly that stroke; if not, the ink stays. Never delete other handwriting.
 - **Edit:** long-press a todo → action bar → Edit: fix the OCR text and choose *when* (Inbox /
   Today / Week / Month / Future). Delete is in the same bar.
 - **Time horizon:** `horizon` (`'day' | 'week' | 'month' | 'future'`, `null` = Inbox) plus
@@ -110,6 +116,9 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
 
 - The box needs firmware **≥ 3.29.45**; older firmware drops `userData` on read.
 - The box doesn't follow handwriting that gets moved.
+- Ticking a box in the note (finger or pen) clears Supernote's undo history: undo can't reach
+  anything drawn before the tick. Accepted.
+- A pen tick doesn't find a box that was moved by hand (a finger tap still does).
 - Todos captured before the box existed have `checkboxTag: null` and have no box.
 - The tap listener is off in the dev loop (no plugin host), so box taps can only be tested
   on-device.
