@@ -16,8 +16,11 @@ import type {TodoItem} from '../types';
 export const MOCK_TODOS: TodoItem[] = [
   {
     id: 'mock-1',
+    // Planned on an earlier day and not done: should still show under Today.
     text: 'Book the ferry tickets',
     done: false,
+    horizon: 'day',
+    plannedOn: '2026-09-29',
     stickerPath: null,
     notePath: null,
     page: null,
@@ -28,6 +31,8 @@ export const MOCK_TODOS: TodoItem[] = [
     id: 'mock-2',
     text: 'Call the dentist back about the appointment',
     done: true,
+    horizon: null,
+    plannedOn: null,
     stickerPath: null,
     notePath: null,
     page: null,
@@ -40,6 +45,8 @@ export const MOCK_TODOS: TodoItem[] = [
     // instead of being pushed off the edge of the row.
     text: 'Ask about whether the balcony railing needs to be replaced before the inspection in the spring',
     done: false,
+    horizon: 'future',
+    plannedOn: '2026-09-15',
     stickerPath: null,
     notePath: null,
     page: null,
@@ -50,6 +57,8 @@ export const MOCK_TODOS: TodoItem[] = [
     id: 'mock-4',
     text: 'Check the weather forecast for the weekend',
     done: true,
+    horizon: 'week',
+    plannedOn: '2026-09-28',
     stickerPath: null,
     notePath: null,
     page: null,

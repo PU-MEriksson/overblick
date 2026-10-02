@@ -100,7 +100,11 @@ export async function addTodo(capture: Capture) {
   if (!(await ensureLoaded())) {
     return;
   }
-  commit([...state.todos, {id: createId(), done: false, ...capture}]);
+  // A lasso capture is a quick add: it lands unsorted, in the Inbox.
+  commit([
+    ...state.todos,
+    {id: createId(), done: false, horizon: null, plannedOn: null, ...capture},
+  ]);
 }
 
 // Updates the list first, then mirrors it onto the box in the note. The note
