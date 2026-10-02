@@ -104,7 +104,14 @@ export async function addTodo(capture: Capture) {
   // A lasso capture is a quick add: it lands unsorted, in the Inbox.
   commit([
     ...state.todos,
-    {id: createId(), done: false, horizon: null, plannedOn: null, ...capture},
+    {
+      id: createId(),
+      done: false,
+      doneOn: null,
+      horizon: null,
+      plannedOn: null,
+      ...capture,
+    },
   ]);
 }
 
@@ -119,7 +126,13 @@ export async function toggleTodo(id: string) {
     return;
   }
   const done = !todo.done;
-  commit(state.todos.map(other => (other.id === id ? {...other, done} : other)));
+  // Ticking from the note comes through here too, so both get a date.
+  const doneOn = done ? todayKey() : null;
+  commit(
+    state.todos.map(other =>
+      other.id === id ? {...other, done, doneOn} : other,
+    ),
+  );
 
   const {notePath, page, checkboxTag} = todo;
   if (notePath !== null && page !== null && checkboxTag !== null) {

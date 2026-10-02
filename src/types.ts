@@ -31,6 +31,9 @@ export type TodoItem = {
   text: string;
   // The plugin's half of the checked state; the note's half is the checkbox.
   done: boolean;
+  // The day it was ticked, local 'YYYY-MM-DD'. null when not done, or when
+  // done before this was recorded.
+  doneOn: string | null;
   // null = not sorted yet, i.e. the Inbox.
   horizon: Horizon | null;
   // The day the horizon was set, as local 'YYYY-MM-DD' (no timezone, so it

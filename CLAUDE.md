@@ -18,33 +18,34 @@ see everything at once. I can't fully trust the system, because I don't always c
 So **the note stays the workspace; the plugin is the overview.** Judge design choices by "does this
 fit a handwritten bullet-journal practice", not by todo-app convention.
 
-## The vision (long-term, NOT in scope yet)
+## The vision (long-term)
 
-This is where the app is heading. Use it to avoid painting us into a corner, but don't build any
-of it until the milestone below is done.
+This is where the app is heading. Use it to avoid painting us into a corner, but only build what's
+in **Current focus** below.
 
 **1. Capture and organise.**
 
-- Select handwriting → it becomes a todo (works today).
-- **Quick add:** the todo lands in an **Inbox**, to be sorted later.
+- Select handwriting → it becomes a todo. *(Done.)*
+- **Quick add:** the todo lands in an **Inbox**, to be sorted later. *(Done.)*
 - **Detailed add:** set the time horizon straight away, so it lands in the right place directly.
   It should also be possible to do this from the note itself.
-- Every todo has a **time horizon**: today, this week, this month. Beyond that is undecided
-  (quarter? year? someday?). Agreed model: store an anchor date plus a granularity
-  (`plannedOn` + `horizon`), never a literal "today", which would go stale overnight.
+- Every todo has a **time horizon**: today, this week, this month, future log. *(Done.)* Later:
+  the future log split by month.
 - Later: schedule a todo for a **specific date**.
 - Later still: **projects**.
 
 **2. Overview, inspired by Things, adapted for e-ink.**
 
-- A sidebar (maybe collapsible) with **Inbox, Today, This Week, This Month, Upcoming**.
+- A sidebar (maybe collapsible) with **Inbox, Today, This Week, This Month, Upcoming**. In the
+  week and month views, the todos planned for today / this week are included too. In Upcoming,
+  each todo appears exactly once (that view exists today, as the main list).
 - Much of what makes Things feel good relies on dragging and a fast screen. The Nomad has
   neither, so this needs trying out on-device rather than designing in the abstract.
 
 **3. The note shows what's been captured.**
 
-- A **checkbox to the left of the handwritten task**, its state synced with the app. Maybe also a
-  dashed underline or similar.
+- A **checkbox to the left of the handwritten task**, its state synced with the app. *(Done.)*
+  Maybe also a dashed underline or similar.
 - Flipping through a daily log, I should see at a glance which tasks are already in the app.
 
 **4. Import from the app into a note.**
@@ -52,14 +53,13 @@ of it until the milestone below is done.
 - Open a new page and import e.g. **today's todos**.
 - Either as the original handwriting (the saved `.sticker`) or as typed text.
 
-## The milestone (the only thing in scope)
+## Current focus
 
-1. User selects handwritten text with the lasso.
-2. It becomes a todo, stored with both the handwritten ink and its OCR text.
-3. The plugin shows the todos as a text list.
-4. A checkbox next to the handwriting on the page, kept in sync with the plugin's list.
+**Not decided yet.** Pick from the vision above together with Malin, then write it here as a few
+concrete steps.
 
-Recurring tasks, tags, due dates and filters are out of scope. Do not build ahead.
+Until something is written here, don't build ahead: no recurring tasks, tags, specific dates,
+projects or filters.
 
 ## Where things are
 
@@ -81,36 +81,39 @@ Recurring tasks, tags, due dates and filters are out of scope. Do not build ahea
   tap on a box in the note ticks its todo.
 - `docs/api-notes.md`: everything learned about the Supernote API and build tooling.
 
-## Status
+## What works today
 
-**The milestone is done: all four steps work on-device.** Todos persist across restarts and
-reinstalls.
+All of this works on-device. Todos persist across restarts and plugin reinstalls.
 
-Step 4, how the checkbox works:
+- **Capture:** lasso handwriting → the plugin's lasso button → a todo with the OCR text, the
+  ink as a `.sticker`, and where it came from (note, page, rect). It lands in the Inbox.
+- **Checkbox in the note:** capture draws a `☐` text element left of the handwriting, tagged
+  with `userData` (stored as `TodoItem.checkboxTag`). At the margin it overlaps the writing;
+  that's accepted.
+- **Ticking stays in sync both ways.** Ticking in the list flips the box to `☑` / `☐`, also in a
+  note that isn't open. A finger tap on the box ticks the todo, with the plugin view open or
+  closed. Pen taps are ignored (they draw).
+- **Edit:** long-press a todo → action bar → Edit: fix the OCR text and choose *when* (Inbox /
+  Today / Week / Month / Future). Delete is in the same bar.
+- **Time horizon:** `horizon` (`'day' | 'week' | 'month' | 'future'`, `null` = Inbox) plus
+  `plannedOn` (local `'YYYY-MM-DD'`, stamped only when the horizon changes).
+- **The list is the Upcoming view:** sections Inbox, Today, This week, This month, Future log.
+  Each todo is in exactly one; empty sections are hidden.
+- **Never overdue (deliberate).** An unfinished todo stays in its section until it's ticked or
+  moved. Nothing is ever marked as late.
+- **Done todos go straight to the Logbook (deliberate).** Visible done todos feel like
+  clutter, even sunk to the bottom or kept only for the day; both were tried on-device. The
+  Logbook is a collapsed section at the bottom ("Logbook · 12", tap Show/Hide), newest first
+  by `doneOn` (the day it was ticked). Unticking one sends it back to its section.
 
-- **Capture draws the box.** A text element holding `☐`, left of the handwriting, tagged with
-  `userData`; the tag is stored as `TodoItem.checkboxTag`. At the margin it overlaps the
-  writing; that's accepted.
-- **Ticking in the list flips the box** to `☑` / `☐`, also in a note that isn't open.
-- **A finger tap on the box ticks the todo**, with the plugin view closed or open. Pen taps are
-  ignored (they draw).
-- Requires firmware **≥ 3.29.45**: older firmware drops `userData` on read.
-- The box doesn't follow handwriting that gets moved (the stroke link did, but tapping it opened a
-  browser search).
-- Todos captured before the box existed have `checkboxTag: null` and simply have no box.
-- All the details and dead ends are in `docs/api-notes.md`. The test screen used to find them
-  (`src/probe/`) is deleted; it's in git history.
+**Known limits:**
 
-**Time horizons (started 2026-10-02):**
-
-- Each todo has `horizon` (`'day' | 'week' | 'month' | 'future'`, or `null` = Inbox) and
-  `plannedOn` (local `'YYYY-MM-DD'`, stamped when the horizon changes). Set in the editor.
-- The list is the **Upcoming view**: sections Inbox, Today, This week, This month, Future log;
-  each todo in exactly one.
-- **Never overdue.** An unfinished todo stays in its section until it's ticked or moved.
-- Future log is one bucket for now. Planned later: future log by month (`horizon: 'month'` +
-  a later `plannedOn`), and a sidebar where the week and month views also include the
-  day/week todos.
+- The box needs firmware **≥ 3.29.45**; older firmware drops `userData` on read.
+- The box doesn't follow handwriting that gets moved.
+- Todos captured before the box existed have `checkboxTag: null` and have no box.
+- The tap listener is off in the dev loop (no plugin host), so box taps can only be tested
+  on-device.
+- Details and dead ends: `docs/api-notes.md`.
 
 ## Build & deploy
 

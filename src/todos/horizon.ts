@@ -39,15 +39,28 @@ const SECTIONS: {bucket: Bucket; title: string}[] = [
 export type TodoSection = {title: string; data: TodoItem[]};
 
 /**
- * The todos grouped into the Upcoming view's sections, in that order. Empty
- * sections are left out to keep the list short. Within a section, todos keep
- * the order they were captured in. `data` is the name SectionList expects.
+ * The open todos grouped into the Upcoming view's sections, in that order.
+ * Done todos are in the Logbook instead, so Upcoming only shows what's left.
+ * Empty sections are left out to keep the list short. Within a section, todos
+ * keep the order they were captured in. `data` is the name SectionList expects.
  */
 export function groupByBucket(todos: TodoItem[]): TodoSection[] {
+  const open = todos.filter(todo => !todo.done);
   return SECTIONS.map(({bucket, title}) => ({
     title,
-    data: todos.filter(todo => bucketFor(todo) === bucket),
+    data: open.filter(todo => bucketFor(todo) === bucket),
   })).filter(section => section.data.length > 0);
+}
+
+/**
+ * The Logbook: every done todo, most recently done first. 'YYYY-MM-DD' strings
+ * sort the same as the dates they hold; undated ones (done before `doneOn`
+ * existed) go last.
+ */
+export function logbook(todos: TodoItem[]): TodoItem[] {
+  return todos
+    .filter(todo => todo.done)
+    .sort((a, b) => (b.doneOn ?? '').localeCompare(a.doneOn ?? ''));
 }
 
 /**

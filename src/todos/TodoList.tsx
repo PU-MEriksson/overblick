@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {
   Image,
   Pressable,
@@ -8,7 +8,11 @@ import {
   View,
 } from 'react-native';
 import type {TodoItem} from '../types';
-import {groupByBucket} from './horizon';
+import {groupByBucket, logbook} from './horizon';
+import type {TodoSection} from './horizon';
+
+// The Logbook is one more section, marked so its heading can open and close.
+type ListSection = TodoSection & {isLogbook?: boolean};
 
 type Props = {
   todos: TodoItem[];
@@ -55,6 +59,11 @@ export function TodoList({
   selectedId,
   onSelect,
 }: Props) {
+  // Closed every time the list opens: the Logbook is for looking back, not
+  // for the daily overview. Declared before the early return below, because
+  // React needs the same hooks called in the same order on every render.
+  const [logbookOpen, setLogbookOpen] = useState(false);
+
   if (todos.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -66,16 +75,43 @@ export function TodoList({
     );
   }
 
+  const archived = logbook(todos);
+  const sections: ListSection[] = groupByBucket(todos);
+  if (archived.length > 0) {
+    sections.push({
+      title: `Logbook · ${archived.length}`,
+      // Closed = a heading with no rows under it.
+      data: logbookOpen ? archived : [],
+      isLogbook: true,
+    });
+  }
+
   return (
     <View style={styles.container}>
       {/* Like FlatList, but grouped: a heading, then that section's rows. */}
       <SectionList
         style={styles.list}
-        sections={groupByBucket(todos)}
+        sections={sections}
         keyExtractor={item => item.id}
-        renderSectionHeader={({section}) => (
-          <Text style={styles.sectionHeading}>{section.title}</Text>
-        )}
+        renderSectionHeader={({section}) =>
+          section.isLogbook ? (
+            <Pressable
+              style={styles.logbookHeading}
+              onPress={() => setLogbookOpen(!logbookOpen)}
+              accessibilityRole="button"
+              accessibilityState={{expanded: logbookOpen}}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              {/* A word, not an arrow glyph: Android has no guaranteed font for those. */}
+              <Text style={styles.logbookToggle}>
+                {logbookOpen ? 'Hide' : 'Show'}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={[styles.sectionHeading, styles.sectionTitle]}>
+              {section.title}
+            </Text>
+          )
+        }
         renderItem={({item}) => (
           <View
             style={[styles.row, item.id === selectedId && styles.rowSelected]}>
@@ -125,10 +161,29 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     borderBottomWidth: 2,
     borderBottomColor: '#000000',
+    backgroundColor: '#ffffff',
+  },
+  sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#000000',
+  },
+  // Same rule as the other headings, plus Show/Hide on the right.
+  logbookHeading: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginTop: 18,
+    marginHorizontal: 24,
+    paddingBottom: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: '#000000',
     backgroundColor: '#ffffff',
+  },
+  logbookToggle: {
+    fontSize: 16,
+    fontStyle: 'italic',
+    color: '#000000',
   },
   row: {
     flexDirection: 'row',

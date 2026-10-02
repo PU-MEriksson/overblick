@@ -15,7 +15,8 @@ const STORAGE_KEY = 'overblick:todos';
 // 1 -> 2 (2026-09-01): added `done` for the milestone step 4 checkbox.
 // 2 -> 3 (2026-10-01): added `checkboxTag`, the ☐ drawn in the note.
 // 3 -> 4 (2026-10-02): added `horizon` and `plannedOn`.
-const SCHEMA_VERSION = 4;
+// 4 -> 5 (2026-10-02): added `doneOn`.
+const SCHEMA_VERSION = 5;
 
 type StoredDocument = {
   schemaVersion: number;
@@ -95,5 +96,8 @@ function migrate(todos: TodoItem[], from: number): TodoItem[] {
     // Before version 4 nothing was planned, so everything starts in the Inbox.
     horizon: todo.horizon ?? null,
     plannedOn: todo.plannedOn ?? null,
+    // Before version 5 nobody recorded when a todo was ticked. null on a done
+    // todo means "some earlier day", which sends it to the Logbook.
+    doneOn: todo.doneOn ?? null,
   }));
 }
