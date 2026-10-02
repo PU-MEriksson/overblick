@@ -16,7 +16,11 @@ PluginManager.init();
 // A finger tap on a box in the note ticks its todo. Here rather than in a
 // component so it works while the plugin view is closed. Must stay the only
 // motion listener: see the comment in boxTap.ts.
-startBoxTaps();
+// Skipped in the `yarn android` dev loop: with no plugin host to register
+// with, the native side crashes. Plugin packages are built with `__DEV__` false.
+if (!__DEV__) {
+  startBoxTaps();
+}
 
 PluginManager.registerButton(1, ['NOTE', 'DOC'], {
   id: 100,

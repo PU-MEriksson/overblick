@@ -1,6 +1,14 @@
 import React from 'react';
-import {FlatList, Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  Image,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type {TodoItem} from '../types';
+import {groupByBucket} from './horizon';
 
 type Props = {
   todos: TodoItem[];
@@ -60,10 +68,14 @@ export function TodoList({
 
   return (
     <View style={styles.container}>
-      <FlatList
+      {/* Like FlatList, but grouped: a heading, then that section's rows. */}
+      <SectionList
         style={styles.list}
-        data={todos}
+        sections={groupByBucket(todos)}
         keyExtractor={item => item.id}
+        renderSectionHeader={({section}) => (
+          <Text style={styles.sectionHeading}>{section.title}</Text>
+        )}
         renderItem={({item}) => (
           <View
             style={[styles.row, item.id === selectedId && styles.rowSelected]}>
@@ -101,11 +113,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    paddingTop: 18,
   },
   list: {
     flex: 1,
     width: '100%',
+  },
+  // Bold with a rule underneath: sections stand apart without colour.
+  sectionHeading: {
+    marginTop: 18,
+    marginHorizontal: 24,
+    paddingBottom: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: '#000000',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
+    backgroundColor: '#ffffff',
   },
   row: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ import {TodoList} from './src/todos/TodoList';
 import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
+import type {Horizon} from './src/types';
 
 /**
  * Plugin View
@@ -24,7 +25,7 @@ function App(): React.JSX.Element {
     addTodo,
     toggleTodo,
     deleteTodo,
-    updateTodoText,
+    editTodo,
     status: storageStatus,
     errorMessage: storageError,
   } = useTodos();
@@ -57,9 +58,9 @@ function App(): React.JSX.Element {
     setSelectedId(null);
   };
 
-  const saveEdit = (text: string) => {
+  const saveEdit = (text: string, horizon: Horizon | null) => {
     if (editingId !== null) {
-      updateTodoText(editingId, text);
+      editTodo(editingId, text, horizon);
     }
     setEditingId(null);
   };

@@ -1,6 +1,7 @@
 import {FileUtils} from 'sn-plugin-lib';
-import type {Capture, TodoItem} from '../types';
+import type {Capture, Horizon, TodoItem} from '../types';
 import {loadTodos, saveTodos} from './todoStorage';
+import {todayKey} from './horizon';
 import {MOCK_TODOS} from './mockTodos';
 import {setCheckbox} from '../note/checkbox';
 
@@ -126,12 +127,30 @@ export async function toggleTodo(id: string) {
   }
 }
 
-// The OCR gets words wrong; this is how the user fixes one.
-export async function updateTodoText(id: string, text: string) {
+// Saves the editor: fixed OCR text and the chosen horizon. `plannedOn` is
+// stamped only when the horizon changes, so fixing a typo keeps the date.
+export async function editTodo(
+  id: string,
+  text: string,
+  horizon: Horizon | null,
+) {
   if (!(await ensureLoaded())) {
     return;
   }
-  commit(state.todos.map(todo => (todo.id === id ? {...todo, text} : todo)));
+  commit(
+    state.todos.map(todo => {
+      if (todo.id !== id) {
+        return todo;
+      }
+      const plannedOn =
+        horizon === todo.horizon
+          ? todo.plannedOn
+          : horizon === null
+          ? null
+          : todayKey();
+      return {...todo, text, horizon, plannedOn};
+    }),
+  );
 }
 
 // Takes the whole todo, not just the id, because it needs `stickerPath`.

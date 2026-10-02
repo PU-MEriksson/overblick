@@ -486,6 +486,14 @@ probe's touch logger, registered right after it, kept recording.
 - Rule: one motion listener for the whole plugin (ours is in `boxTap.ts`), dispatching to
   anything else that needs touches. Collapse-expand does the same.
 
+### Event listeners crash the `yarn android` dev loop
+
+- Found 2026-10-02: `registerMotionListener` (any `registerEventListener`) in the standalone dev
+  loop throws a native `NullPointerException` on `HostCommonAPI.registerPenUpListener(...)`:
+  there's no plugin host, so the host API object is null. Shows as a red screen at startup.
+- `index.js` therefore only calls `startBoxTaps()` when `!__DEV__`. Tapping boxes can only be
+  tested on-device anyway.
+
 ## The native build needs JDK 21 — Android Studio's bundled JDK is too new
 
 - `./buildPlugin.sh` only invokes Gradle when a native module is present, so this doesn't bite

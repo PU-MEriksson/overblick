@@ -67,6 +67,8 @@ Recurring tasks, tags, due dates and filters are out of scope. Do not build ahea
 - `src/todos/todoStore.ts`: the one copy of the todo list and every change to it, outside
   React so non-component code (the tap listener) shares it. Each change goes through
   `commit()`, which updates the list **and** saves.
+- `src/todos/horizon.ts`: which section of the Upcoming view a todo belongs in, and the
+  grouping into those sections. Plain JS, no React.
 - `src/todos/useTodos.ts`: how components read the store (`useSyncExternalStore`).
 - `src/todos/todoStorage.ts`: reads/writes the list to AsyncStorage (key `overblick:todos`,
   wrapped in a `schemaVersion` envelope; older data is migrated, never refused).
@@ -99,7 +101,16 @@ Step 4, how the checkbox works:
 - All the details and dead ends are in `docs/api-notes.md`. The test screen used to find them
   (`src/probe/`) is deleted; it's in git history.
 
-**Next step:** not decided yet. Pick from the vision above together with Malin.
+**Time horizons (started 2026-10-02):**
+
+- Each todo has `horizon` (`'day' | 'week' | 'month' | 'future'`, or `null` = Inbox) and
+  `plannedOn` (local `'YYYY-MM-DD'`, stamped when the horizon changes). Set in the editor.
+- The list is the **Upcoming view**: sections Inbox, Today, This week, This month, Future log;
+  each todo in exactly one.
+- **Never overdue.** An unfinished todo stays in its section until it's ticked or moved.
+- Future log is one bucket for now. Planned later: future log by month (`horizon: 'month'` +
+  a later `plannedOn`), and a sidebar where the week and month views also include the
+  day/week todos.
 
 ## Build & deploy
 

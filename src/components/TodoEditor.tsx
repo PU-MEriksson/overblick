@@ -8,14 +8,23 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import type {TodoItem} from '../types';
+import type {Horizon, TodoItem} from '../types';
 
 type Props = {
   todo: TodoItem;
   onCancel: () => void;
   // Called once, on save — not on every keystroke. The draft below is why.
-  onSave: (text: string) => void;
+  onSave: (text: string, horizon: Horizon | null) => void;
 };
+
+// The choices under "When", in order. null is the Inbox: not sorted yet.
+const HORIZON_OPTIONS: {value: Horizon | null; label: string}[] = [
+  {value: null, label: 'Inbox'},
+  {value: 'day', label: 'Today'},
+  {value: 'week', label: 'Week'},
+  {value: 'month', label: 'Month'},
+  {value: 'future', label: 'Future'},
+];
 
 /**
  * The edit dialog. Rendered only while a todo is being edited, which is what
@@ -29,6 +38,7 @@ export function TodoEditor({
   onSave,
 }: Props): React.JSX.Element {
   const [draft, setDraft] = useState(todo.text);
+  const [horizon, setHorizon] = useState(todo.horizon);
   const {width: windowWidth, height: windowHeight} = useWindowDimensions();
 
   const save = () => {
@@ -40,7 +50,7 @@ export function TodoEditor({
       onCancel();
       return;
     }
-    onSave(trimmed);
+    onSave(trimmed, horizon);
   };
 
   return (
@@ -58,6 +68,29 @@ export function TodoEditor({
             onChangeText={setDraft}
             multiline
           />
+
+          <Text style={styles.modalHeading}>WHEN</Text>
+          <View style={styles.horizonRow}>
+            {HORIZON_OPTIONS.map(option => {
+              const selected = option.value === horizon;
+              return (
+                <Pressable
+                  key={option.label}
+                  style={[styles.horizonButton, selected && styles.selected]}
+                  onPress={() => setHorizon(option.value)}
+                  accessibilityRole="button"
+                  accessibilityState={{selected}}>
+                  <Text
+                    style={[
+                      styles.modalButtonText,
+                      selected && styles.modalButtonTextPrimary,
+                    ]}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <View style={styles.modalButtonRow}>
             <Pressable style={styles.modalButton} onPress={onCancel}>
@@ -115,6 +148,23 @@ const styles = StyleSheet.create({
     // Android centres multiline text vertically by default; this puts the
     // cursor at the top where it belongs.
     textAlignVertical: 'top',
+  },
+  horizonRow: {
+    flexDirection: 'row',
+    // Wraps to a second line rather than squeezing, if the screen is narrow.
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 24,
+  },
+  horizonButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  // The chosen horizon is filled black, like the Save button: no colour needed.
+  selected: {
+    backgroundColor: '#000000',
   },
   modalButtonRow: {
     flexDirection: 'row',

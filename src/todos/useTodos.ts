@@ -2,11 +2,11 @@ import {useEffect, useSyncExternalStore} from 'react';
 import {
   addTodo,
   deleteTodo,
+  editTodo,
   ensureLoaded,
   getState,
   subscribe,
   toggleTodo,
-  updateTodoText,
 } from './todoStore';
 
 /**
@@ -28,7 +28,7 @@ export function useTodos() {
     todos,
     addTodo,
     toggleTodo,
-    updateTodoText,
+    editTodo,
     deleteTodo,
     status,
     errorMessage,
