@@ -5,6 +5,7 @@ import {
   editTodo,
   ensureLoaded,
   getState,
+  planTodos,
   subscribe,
   toggleTodo,
 } from './todoStore';
@@ -30,6 +31,7 @@ export function useTodos() {
     toggleTodo,
     editTodo,
     deleteTodo,
+    planTodos,
     status,
     errorMessage,
   };

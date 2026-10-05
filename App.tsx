@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   StatusBar,
@@ -13,8 +13,13 @@ import {TodoList} from './src/todos/TodoList';
 import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
+import {ImportScreen} from './src/components/ImportScreen';
 import {importTodos} from './src/note/importTodos';
 import type {Horizon} from './src/types';
+
+// How long the notice line under the header stays before it clears itself.
+const NOTICE_MS = 4000;
+
 /**
  * Plugin View
  * Shows the list of handwriting captured via lasso selections.
@@ -26,6 +31,7 @@ function App(): React.JSX.Element {
     toggleTodo,
     deleteTodo,
     editTodo,
+    planTodos,
     status: storageStatus,
     errorMessage: storageError,
   } = useTodos();
@@ -42,10 +48,34 @@ function App(): React.JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingTodo = todos.find(todo => todo.id === editingId) ?? null;
 
-  // True while a todo is being written onto the page. `notice` says what went
-  // wrong, until the next try.
+  // True while a todo is being written onto the page. `notice` says what
+  // happened, for a few seconds.
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState('');
+
+  // Runs every time `notice` changes. A new notice starts a timer that clears
+  // it; the returned function cancels that timer if the notice changes (or
+  // the screen closes) first, so an old timer can't clear a newer notice.
+  useEffect(() => {
+    if (notice === '') {
+      return;
+    }
+    const timer = setTimeout(() => setNotice(''), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  // Whether the "Add to page" screen is showing instead of the list.
+  const [importOpen, setImportOpen] = useState(false);
+
+  const openImport = () => {
+    setNotice('');
+    setImportOpen(true);
+  };
+
+  const closeImport = (summary: string) => {
+    setImportOpen(false);
+    setNotice(summary);
+  };
 
   const handleClose = () => {
     PluginManager.closePluginView();
@@ -88,6 +118,15 @@ function App(): React.JSX.Element {
     }
     setEditingId(null);
   };
+
+  if (importOpen) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <ImportScreen todos={todos} onPlan={planTodos} onClose={closeImport} />
+      </View>
+    );
+  }
 
   const isBusy =
     storageStatus === 'loading' || captureStatus === 'loading' || importing;
@@ -140,7 +179,7 @@ function App(): React.JSX.Element {
           onToPage={toPageSelected}
         />
       ) : (
-        <Header onClose={handleClose} />
+        <Header onClose={handleClose} onAddToPage={openImport} />
       )}
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 

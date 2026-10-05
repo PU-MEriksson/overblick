@@ -57,9 +57,9 @@ in **Current focus** below.
 
 Decided 2026-10-05, after a weekend of real use. In this order:
 
-1. **Ticked todos linger.** Ticking in the list shows the tick for about a second before the
+1. *(Done.)* **Ticked todos linger.** Ticking in the list shows the tick for about a second before the
    todo moves to the Logbook.
-2. **Import into a note, planning.** Pick todos in the plugin, choose a target (Today / This week /
+2. *(Done 2026-10-05.)* **Import into a note, planning.** Pick todos in the plugin, choose a target (Today / This week /
    This month, which also sets the horizon), and they're inserted as typed text, each with a
    new ☐, on the open page. Going from a bigger list to a smaller one (month → week → day) is
    *planning*: the old box stays and is **linked**, so ticking any box ticks them all. A todo
@@ -122,6 +122,11 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
   handwriting at the usual left edge. Box and text are two elements, moved together with the
   lasso. The new box is linked: ticking any of a todo's boxes ticks them all. A todo whose box
   is still on that page isn't added twice.
+- **Add to page screen** *(confirmed on-device 2026-10-05)*: header → Add to page. Pick todos
+  (written in the order picked), choose Plan as Today / This week / This month (sets their
+  horizon), Add. Todos already on the page can't be picked. Shows each step while it works,
+  then a summary under the header that clears after 4 s. The UI is a first version; Malin is
+  trying it out before deciding how it should feel.
 - **Time horizon:** `horizon` (`'day' | 'week' | 'month' | 'future'`, `null` = Inbox) plus
   `plannedOn` (local `'YYYY-MM-DD'`, stamped only when the horizon changes).
 - **The list is the Upcoming view:** sections Inbox, Today, This week, This month, Future log.

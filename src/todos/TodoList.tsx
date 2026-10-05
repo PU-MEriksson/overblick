@@ -44,7 +44,7 @@ type Props = {
  * Android, so you get whichever fallback the device picks, typically thin and
  * off-centre. An asset is the same everywhere.
  */
-function Checkbox({checked}: {checked: boolean}) {
+export function Checkbox({checked}: {checked: boolean}) {
   return (
     <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
       {checked && (

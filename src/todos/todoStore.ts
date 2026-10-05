@@ -166,6 +166,30 @@ export async function addBoxes(added: {id: string; box: NoteBox}[]) {
   );
 }
 
+// Sets the horizon of several todos, e.g. the ones just added to today's page.
+export async function planTodos(ids: string[], horizon: Horizon) {
+  if (!(await ensureLoaded())) {
+    return;
+  }
+  commit(
+    state.todos.map(todo =>
+      ids.includes(todo.id) ? withHorizon(todo, horizon) : todo,
+    ),
+  );
+}
+
+// `plannedOn` is stamped only when the horizon changes, so re-saving the same
+// horizon keeps the original date.
+function withHorizon(todo: TodoItem, horizon: Horizon | null): TodoItem {
+  const plannedOn =
+    horizon === todo.horizon
+      ? todo.plannedOn
+      : horizon === null
+      ? null
+      : todayKey();
+  return {...todo, horizon, plannedOn};
+}
+
 // Saves the editor: fixed OCR text and the chosen horizon. `plannedOn` is
 // stamped only when the horizon changes, so fixing a typo keeps the date.
 export async function editTodo(
@@ -177,18 +201,9 @@ export async function editTodo(
     return;
   }
   commit(
-    state.todos.map(todo => {
-      if (todo.id !== id) {
-        return todo;
-      }
-      const plannedOn =
-        horizon === todo.horizon
-          ? todo.plannedOn
-          : horizon === null
-          ? null
-          : todayKey();
-      return {...todo, text, horizon, plannedOn};
-    }),
+    state.todos.map(todo =>
+      todo.id === id ? withHorizon({...todo, text}, horizon) : todo,
+    ),
   );
 }
 
