@@ -55,11 +55,24 @@ in **Current focus** below.
 
 ## Current focus
 
-**Not decided yet.** Pick from the vision above together with Malin, then write it here as a few
-concrete steps.
+Decided 2026-10-05, after a weekend of real use. In this order:
 
-Until something is written here, don't build ahead: no recurring tasks, tags, specific dates,
-projects or filters.
+1. **Ticked todos linger.** Ticking in the list shows the tick for about a second before the
+   todo moves to the Logbook.
+2. **Import into a note, planning.** Pick todos in the plugin, choose a target (Today / This week /
+   This month, which also sets the horizon), and they're inserted as typed text, each with a
+   new ☐, on the open page. Going from a bigger list to a smaller one (month → week → day) is
+   *planning*: the old box stays and is **linked**, so ticking any box ticks them all. A todo
+   gets a list of boxes instead of one `checkboxTag`. The import screen says what will happen.
+3. **Import, migration.** Importing from an earlier day/week at the same level is *migration*:
+   the old box becomes `>` and is unlinked.
+4. Views and navigation: Inbox, Today, This Week, This Month, Upcoming, Logbook.
+5. Experiment: open the plugin from a box in the note (`showPluginView`). There is no API for a
+   floating button.
+6. Projects.
+
+Imported handwriting (`insertSticker`, which takes no position) comes later. Don't build ahead:
+no recurring tasks, tags, specific dates or filters.
 
 ## Where things are
 

@@ -11,6 +11,10 @@ import type {TodoItem} from '../types';
 import {groupByBucket, logbook} from './horizon';
 import type {TodoSection} from './horizon';
 
+// How long a ticked todo keeps showing in its section before the Logbook takes
+// it. Long enough for the e-ink screen to draw the tick and for you to see it.
+const LINGER_MS = 1000;
+
 // The Logbook is one more section, marked so its heading can open and close.
 type ListSection = TodoSection & {isLogbook?: boolean};
 
@@ -64,6 +68,25 @@ export function TodoList({
   // React needs the same hooks called in the same order on every render.
   const [logbookOpen, setLogbookOpen] = useState(false);
 
+  // Ids of todos just ticked here, still shown in their section. Display only:
+  // the store already has them as done and saved.
+  const [lingering, setLingering] = useState<string[]>([]);
+
+  const handleToggle = (item: TodoItem) => {
+    onToggle(item.id);
+    // Each update gets the latest list (`ids`), not the one from this render,
+    // because the timer's update runs a second later.
+    const stopLingering = () =>
+      setLingering(ids => ids.filter(id => id !== item.id));
+    if (item.done) {
+      // Unticked (maybe while still lingering): it's open again, show it now.
+      stopLingering();
+      return;
+    }
+    setLingering(ids => [...ids, item.id]);
+    setTimeout(stopLingering, LINGER_MS);
+  };
+
   if (todos.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -75,8 +98,8 @@ export function TodoList({
     );
   }
 
-  const archived = logbook(todos);
-  const sections: ListSection[] = groupByBucket(todos);
+  const archived = logbook(todos, lingering);
+  const sections: ListSection[] = groupByBucket(todos, lingering);
   if (archived.length > 0) {
     sections.push({
       title: `Logbook · ${archived.length}`,
@@ -117,14 +140,14 @@ export function TodoList({
             style={[styles.row, item.id === selectedId && styles.rowSelected]}>
             <Pressable
               style={styles.toggleArea}
-              onPress={() => onToggle(item.id)}
+              onPress={() => handleToggle(item)}
               accessibilityRole="checkbox"
               accessibilityState={{checked: item.done}}>
               <Checkbox checked={item.done} />
             </Pressable>
             <Pressable
               style={styles.textArea}
-              onPress={() => onToggle(item.id)}
+              onPress={() => handleToggle(item)}
               // Long press toggles selection rather than only setting it, so
               // the same gesture that opens the bar also dismisses it. The
               // comparison is done here rather than with a state updater
