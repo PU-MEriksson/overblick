@@ -7,6 +7,7 @@ type Props = {
   onClear: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToPage: () => void;
 };
 
 /**
@@ -23,6 +24,7 @@ export function ActionBar({
   onClear,
   onEdit,
   onDelete,
+  onToPage,
 }: Props): React.JSX.Element {
   return (
     <View style={styles.actionBar}>
@@ -50,6 +52,17 @@ export function ActionBar({
         accessibilityRole="button">
         <Image source={require('../../assets/edit.png')} style={styles.icon} />
         <Text style={styles.actionBarButtonText}>Edit</Text>
+      </Pressable>
+      {/* Temporary, to try importing one todo before the import screen exists. */}
+      <Pressable
+        style={styles.actionBarButton}
+        onPress={onToPage}
+        accessibilityRole="button">
+        <Image
+          source={require('../../assets/mountain.png')}
+          style={styles.icon}
+        />
+        <Text style={styles.actionBarButtonText}>To page</Text>
       </Pressable>
       <Pressable
         style={styles.actionBarButton}

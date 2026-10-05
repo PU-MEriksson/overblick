@@ -145,6 +145,27 @@ async function setBoxes(boxes: NoteBox[], done: boolean) {
   }
 }
 
+// Links boxes just written into a note, so ticking any box ticks them all.
+// A todo's old box on the same page is dropped: import only writes a new one
+// where the old one is gone (erased).
+export async function addBoxes(added: {id: string; box: NoteBox}[]) {
+  if (!(await ensureLoaded())) {
+    return;
+  }
+  commit(
+    state.todos.map(todo => {
+      const box = added.find(other => other.id === todo.id)?.box;
+      if (!box) {
+        return todo;
+      }
+      const elsewhere = todo.boxes.filter(
+        old => old.notePath !== box.notePath || old.page !== box.page,
+      );
+      return {...todo, boxes: [...elsewhere, box]};
+    }),
+  );
+}
+
 // Saves the editor: fixed OCR text and the chosen horizon. `plannedOn` is
 // stamped only when the horizon changes, so fixing a typo keeps the date.
 export async function editTodo(

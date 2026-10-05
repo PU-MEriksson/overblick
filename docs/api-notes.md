@@ -244,6 +244,38 @@ probe's T1/T2/T3 (`src/probe/AnchorProbe.tsx`):
   handwriting. At box size 80 / font 54, simply centring on the lasso rect looks right (no
   vertical offset needed — the smaller 60 / 40 box had looked slightly high).
 
+### A `textRect` must be whole numbers
+
+`sn-plugin-lib`'s `VerifyUtils.RectSchema` marks `left/top/right/bottom` as `integer: true`, and
+`TextBox.textRect` is checked against it. A rect with decimals is rejected before it reaches the
+device (`APIError 107 … must be an integer`). Found 2026-10-05: placing a todo below handwriting
+failed, because `PointUtils.emrPoint2Android` returns decimals (it divides). Placing below typed
+text worked, since `textRect` values read back are already whole. Round anything computed.
+
+### Typed `☐ text` lines — confirmed on-device 2026-10-05
+
+First tried as one tagged `TYPE_TEXT` element holding `☐ <todo text>`. Now two elements
+(`insertTodoLine` in `src/note/checkbox.ts`), see the last point.
+
+- **`PluginFileAPI.getPageSize(notePath, page)` looks like the same screen px as `textRect`.**
+  Inferred, not measured: a text rect running to `width - 60` wrapped near the page's right
+  edge. In a different unit it would have wrapped far too early or run off the page.
+- **Text wraps inside `textRect`.** A long todo wrapped onto more lines.
+- **A text box draws its content inset from `textRect.left`**, measured from a screenshot: a ☐
+  at font 54 about 30 px in, text at font 44 about 23 px in. Allow for it when lining typed
+  text up with handwriting.
+- **Moving the text box with Supernote's text tool keeps `userData`.** Box and text move as one,
+  and ticking from the list or by finger tap still works afterwards (finger taps read the
+  current `textRect`; pen ticks use the stored rect, so they won't follow a move).
+- **Changing the font size with Supernote's text tool breaks the box**: ticking stops working.
+  Not investigated; likely the firmware recreates the element without `userData`.
+- **One element = one font size.** `TextBox` has a single `fontSize`, and the types have no rich
+  text or grouping. Malin's handwriting matches font size 44, but the box must stay the size of
+  the lasso boxes (font 54), so box and text can't share a size. **Decided: two elements**, a
+  tagged box (54) and untagged text (44), inserted in one `insertElements` call. They're moved
+  together with the lasso, like a handwritten todo and its box (lasso can select and move a
+  typed text element, confirmed by Malin).
+
 Background, from before the update:
 
 - Re-tested on-device 2026-10-01 with collapse-expand's exact recipe (`createElement(TYPE_TEXT)`

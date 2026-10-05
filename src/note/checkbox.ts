@@ -26,6 +26,22 @@ const BOX_FONT_SIZE = 54;
 const BOX_GAP = 10;
 // Extra px to push the box down from centre. 0–1 looked equally right at size 80.
 const BOX_NUDGE_DOWN = 0;
+// Typed todo text. 44 matched Malin's handwriting on-device.
+const TEXT_FONT_SIZE = 44;
+// Height of one wrapped line at TEXT_FONT_SIZE. A guess; tune on-device.
+const TEXT_LINE_HEIGHT = 60;
+// Push the text down so its first line sits level with the bigger box.
+const TEXT_NUDGE_DOWN = 8;
+// Space between the box's rect and the typed text's rect. Below zero because a
+// text box draws its text about 23 px in from its left edge; this leaves the
+// same ~30 px between box and words as next to handwriting (measured
+// on-device).
+const TEXT_GAP = -5;
+// Space kept free at the page's right edge by typed text.
+const LINE_MARGIN = 60;
+// Average character width as a share of the font size, for guessing where
+// text wraps. Generous, so the rect is rather too tall than too short.
+const CHAR_WIDTH_RATIO = 0.55;
 
 // reloadFile() can hang indefinitely (found by collapse-expand); a missing
 // refresh only delays showing the box, so we don't wait forever for it.
@@ -79,53 +95,167 @@ export async function insertCheckbox(
   page: number,
   lasso: Rect,
 ): Promise<NoteBox | null> {
+  const rect = boxRectFor(lasso);
+  const tag = createTag();
+  try {
+    await insertTexts(notePath, page, [
+      {content: GLYPH_OPEN, rect, fontSize: BOX_FONT_SIZE, tag},
+    ]);
+    return {notePath, page, tag, rect};
+  } catch {
+    return null;
+  }
+}
+
+// Where a typed todo goes: the box, the text to its right, and how far down
+// the page the two reach.
+export type TodoLineLayout = {box: Rect; text: Rect; bottom: number};
+
+/**
+ * Lays out a typed todo with its box's top-left at `left`/`top`. The text runs
+ * to the page's right margin; its height is a guess at how many lines it wraps
+ * to, from an average character width, since the font's real widths aren't
+ * known. Every value is a whole number: the API rejects a rect with decimals.
+ */
+export function todoLineLayout(
+  text: string,
+  left: number,
+  top: number,
+  pageWidth: number,
+): TodoLineLayout {
+  left = Math.round(left);
+  top = Math.round(top);
+  const box = {left, top, right: left + BOX_SIZE, bottom: top + BOX_SIZE};
+  const textLeft = box.right + TEXT_GAP;
+  const right = Math.round(pageWidth - LINE_MARGIN);
+  const charsPerLine = Math.max(
+    1,
+    Math.floor((right - textLeft) / (TEXT_FONT_SIZE * CHAR_WIDTH_RATIO)),
+  );
+  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
+  const textTop = top + TEXT_NUDGE_DOWN;
+  const textRect = {
+    left: textLeft,
+    top: textTop,
+    right,
+    bottom: textTop + lines * TEXT_LINE_HEIGHT,
+  };
+  return {box, text: textRect, bottom: Math.max(box.bottom, textRect.bottom)};
+}
+
+export type TodoLine = {text: string; layout: TodoLineLayout};
+
+/**
+ * Writes todos as typed text, each with a ☐ in front, in one write. Two
+ * elements per todo, because one text element has one font size and the box
+ * must match the lasso boxes. Like a handwritten todo, they're moved together
+ * with the lasso. Returns the boxes in the same order as `lines`. Throws with
+ * the reason if nothing could be written.
+ */
+export async function insertTodoLines(
+  notePath: string,
+  page: number,
+  lines: TodoLine[],
+): Promise<NoteBox[]> {
+  const tags = lines.map(() => createTag());
+  await insertTexts(
+    notePath,
+    page,
+    lines.flatMap((line, i) => [
+      {
+        content: GLYPH_OPEN,
+        rect: line.layout.box,
+        fontSize: BOX_FONT_SIZE,
+        tag: tags[i],
+      },
+      // No tag: it's just the words; the plugin never needs to find it again.
+      {
+        content: line.text,
+        rect: line.layout.text,
+        fontSize: TEXT_FONT_SIZE,
+        tag: null,
+      },
+    ]),
+  );
+  return lines.map((line, i) => ({
+    notePath,
+    page,
+    tag: tags[i],
+    rect: line.layout.box,
+  }));
+}
+
+type TextSpec = {
+  content: string;
+  rect: Rect;
+  fontSize: number;
+  // `userData`, so the element can be found again; null for none.
+  tag: string | null;
+};
+
+// Inserts text elements onto a page in one write. Throws with the reason
+// (the API's own message where there is one) if it fails.
+async function insertTexts(
+  notePath: string,
+  page: number,
+  texts: TextSpec[],
+): Promise<void> {
+  const elements: Record<string, unknown>[] = [];
   try {
     if (!(await ensureNotePermissions())) {
-      return null;
+      throw new Error('no permission to read and write notes');
     }
 
     // Flush the open note to disk BEFORE writing by path, never after: a save
     // afterwards writes the note's older in-memory copy back over our insert.
     await PluginNoteAPI.saveCurrentNote();
 
-    const created = (await PluginCommAPI.createElement(
-      Element.TYPE_TEXT,
-    )) as ApiResponse<Record<string, unknown>>;
-    if (!created?.success || !created.result) {
-      return null;
+    for (const text of texts) {
+      const created = (await PluginCommAPI.createElement(
+        Element.TYPE_TEXT,
+      )) as ApiResponse<Record<string, unknown>>;
+      if (!created?.success || !created.result) {
+        throw new Error(
+          `createElement failed: ${created?.error?.message ?? 'no answer'}`,
+        );
+      }
+      const element = created.result;
+      elements.push(element);
+      if (text.tag !== null) {
+        element.userData = text.tag;
+      }
+      element.pageNum = page;
+      // Every style field set, so the text doesn't inherit the user's last text style.
+      element.textBox = {
+        fontSize: text.fontSize,
+        textContentFull: text.content,
+        textRect: text.rect,
+        textAlign: 0,
+        textBold: 0,
+        textItalics: 0,
+        textFrameWidthType: 0,
+        textFrameStyle: 0,
+        textEditable: 0,
+      };
     }
-    const element = created.result;
 
-    const tag = createTag();
-    const rect = boxRectFor(lasso);
-    element.userData = tag;
-    element.pageNum = page;
-    // Every style field set, so the box doesn't inherit the user's last text style.
-    element.textBox = {
-      fontSize: BOX_FONT_SIZE,
-      textContentFull: GLYPH_OPEN,
-      textRect: rect,
-      textAlign: 0,
-      textBold: 0,
-      textItalics: 0,
-      textFrameWidthType: 0,
-      textFrameStyle: 0,
-      textEditable: 0,
-    };
-
-    const inserted = (await PluginFileAPI.insertElements(notePath, page, [
-      element,
-    ])) as ApiResponse<boolean>;
-    // createElement's object lives in a native cache; release it either way.
-    PluginCommAPI.recycleElement(String(element.uuid));
+    const inserted = (await PluginFileAPI.insertElements(
+      notePath,
+      page,
+      elements,
+    )) as ApiResponse<boolean>;
     if (!inserted?.success) {
-      return null;
+      throw new Error(
+        `insertElements failed: ${inserted?.error?.message ?? 'no answer'}`,
+      );
     }
 
     await redrawPage();
-    return {notePath, page, tag, rect};
-  } catch {
-    return null;
+  } finally {
+    // createElement's objects live in a native cache; release them either way.
+    for (const element of elements) {
+      PluginCommAPI.recycleElement(String(element.uuid));
+    }
   }
 }
 

@@ -13,6 +13,7 @@ import {TodoList} from './src/todos/TodoList';
 import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
+import {importTodos} from './src/note/importTodos';
 import type {Horizon} from './src/types';
 /**
  * Plugin View
@@ -41,6 +42,11 @@ function App(): React.JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingTodo = todos.find(todo => todo.id === editingId) ?? null;
 
+  // True while a todo is being written onto the page. `notice` says what went
+  // wrong, until the next try.
+  const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState('');
+
   const handleClose = () => {
     PluginManager.closePluginView();
   };
@@ -57,6 +63,25 @@ function App(): React.JSX.Element {
     setSelectedId(null);
   };
 
+  // async, so it can wait for the write before hiding the spinner.
+  const toPageSelected = async () => {
+    if (selectedTodo === null) {
+      return;
+    }
+    setSelectedId(null);
+    setNotice('');
+    setImporting(true);
+    const result = await importTodos([selectedTodo]);
+    setImporting(false);
+    if (!result.ok) {
+      setNotice(result.reason);
+    } else if (result.alreadyHere.length > 0) {
+      setNotice('That todo is already on this page.');
+    } else if (result.didntFit.length > 0) {
+      setNotice("That todo didn't fit below what's written on this page.");
+    }
+  };
+
   const saveEdit = (text: string, horizon: Horizon | null) => {
     if (editingId !== null) {
       editTodo(editingId, text, horizon);
@@ -64,7 +89,8 @@ function App(): React.JSX.Element {
     setEditingId(null);
   };
 
-  const isBusy = storageStatus === 'loading' || captureStatus === 'loading';
+  const isBusy =
+    storageStatus === 'loading' || captureStatus === 'loading' || importing;
   // A storage error wins: there's nowhere to put a capture until storage works.
   const failure =
     storageStatus === 'error'
@@ -111,12 +137,14 @@ function App(): React.JSX.Element {
           onClear={() => setSelectedId(null)}
           onEdit={editSelected}
           onDelete={deleteSelected}
+          onToPage={toPageSelected}
         />
       ) : (
         <Header onClose={handleClose} />
       )}
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
+      {notice !== '' && <Text style={styles.notice}>{notice}</Text>}
       {renderBody()}
 
       {/* Only mounted while editing; unmounting throws the draft away. */}
@@ -142,6 +170,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
+  },
+  notice: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    fontSize: 18,
+    fontStyle: 'italic',
+    color: '#000000',
   },
   errorText: {
     fontSize: 18,
