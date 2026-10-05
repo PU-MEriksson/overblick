@@ -66,7 +66,8 @@ Decided 2026-10-05, after a weekend of real use. In this order:
    gets a list of boxes instead of one `checkboxTag`. The import screen says what will happen.
 3. **Import, migration.** Importing from an earlier day/week at the same level is *migration*:
    the old box becomes `>` and is unlinked.
-4. Views and navigation: Inbox, Today, This Week, This Month, Upcoming, Logbook.
+4. *(Built 2026-10-05, being tried out.)* Views and navigation: tabs Inbox, Today, Week, Month,
+   Future, Upcoming, Logbook. Opens on Today.
 5. Experiment: open the plugin from a box in the note (`showPluginView`). There is no API for a
    floating button.
 6. Projects.
@@ -131,6 +132,11 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
   `plannedOn` (local `'YYYY-MM-DD'`, stamped only when the horizon changes).
 - **The list is the Upcoming view:** sections Inbox, Today, This week, This month, Future log.
   Each todo is in exactly one; empty sections are hidden.
+- **Views** *(being tried out)*: tabs under the header (a stand-in for a sidebar): Inbox, Today,
+  Week, Month, Future, Upcoming, Logbook; opens on Today. Week also shows today's todos and
+  Month this week's and today's, smallest first, like a monthly list still holding what was
+  planned for this week. Upcoming keeps each todo once, under its own heading. Each view ends
+  with a quiet "Show logged · n" for its done todos (`viewContent` in `horizon.ts`).
 - **Never overdue (deliberate).** An unfinished todo stays in its section until it's ticked or
   moved. Nothing is ever marked as late.
 - **Done todos go to the Logbook (deliberate).** Ticked in the list, a todo stays visible and

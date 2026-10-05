@@ -49,13 +49,16 @@ export function groupByBucket(
   todos: TodoItem[],
   lingering: string[] = [],
 ): TodoSection[] {
-  const open = todos.filter(
-    todo => !todo.done || lingering.includes(todo.id),
-  );
+  const open = todos.filter(todo => isShownOpen(todo, lingering));
   return SECTIONS.map(({bucket, title}) => ({
     title,
     data: open.filter(todo => bucketFor(todo) === bucket),
   })).filter(section => section.data.length > 0);
+}
+
+// Open, or just ticked and still lingering in its section.
+function isShownOpen(todo: TodoItem, lingering: string[]): boolean {
+  return !todo.done || lingering.includes(todo.id);
 }
 
 /**
@@ -71,6 +74,73 @@ export function logbook(
   return todos
     .filter(todo => todo.done && !lingering.includes(todo.id))
     .sort((a, b) => (b.doneOn ?? '').localeCompare(a.doneOn ?? ''));
+}
+
+// The views you can switch between, in the order of the tabs. Upcoming shows
+// every open todo once, by section; the others one section each; the Logbook
+// only done todos.
+export type View = 'upcoming' | Bucket | 'logbook';
+
+// What each one-section view shows, smallest horizon first: its own todos plus
+// the ones planned within it, like a bullet journal's monthly list still
+// holding what was moved to this week. The future log is later months, so
+// this month's work isn't in it.
+const VIEW_BUCKETS: Record<Bucket, Bucket[]> = {
+  inbox: ['inbox'],
+  today: ['today'],
+  week: ['today', 'week'],
+  month: ['today', 'week', 'month'],
+  future: ['future'],
+};
+
+export const VIEWS: {view: View; label: string}[] = [
+  {view: 'inbox', label: 'Inbox'},
+  {view: 'today', label: 'Today'},
+  {view: 'week', label: 'Week'},
+  {view: 'month', label: 'Month'},
+  {view: 'future', label: 'Future'},
+  {view: 'upcoming', label: 'Upcoming'},
+  {view: 'logbook', label: 'Logbook'},
+];
+
+/**
+ * What a view lists: its sections of open todos, and the done todos that
+ * belong to it (behind "Show logged" at the bottom). `done` is null
+ * for the Logbook view, which is all done todos already.
+ *
+ * A one-section view always has its section, even empty, so the heading
+ * shows; Upcoming leaves empty sections out to stay short. Week and Month
+ * include the smaller horizons (VIEW_BUCKETS), today's first; Upcoming keeps
+ * each todo under its own heading.
+ */
+export function viewContent(
+  view: View,
+  todos: TodoItem[],
+  lingering: string[] = [],
+): {sections: TodoSection[]; done: TodoItem[] | null} {
+  if (view === 'upcoming') {
+    return {
+      sections: groupByBucket(todos, lingering),
+      done: logbook(todos, lingering),
+    };
+  }
+  if (view === 'logbook') {
+    return {sections: [{title: 'Logbook', data: logbook(todos)}], done: null};
+  }
+  const buckets = VIEW_BUCKETS[view];
+  // sort() keeps the captured order within the same horizon.
+  const mine = todos
+    .filter(todo => buckets.includes(bucketFor(todo)))
+    .sort(
+      (a, b) => buckets.indexOf(bucketFor(a)) - buckets.indexOf(bucketFor(b)),
+    );
+  const title = SECTIONS.find(section => section.bucket === view)?.title ?? '';
+  return {
+    sections: [
+      {title, data: mine.filter(todo => isShownOpen(todo, lingering))},
+    ],
+    done: logbook(mine, lingering),
+  };
 }
 
 /**

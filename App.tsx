@@ -14,6 +14,8 @@ import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
 import {ImportScreen} from './src/components/ImportScreen';
+import {ViewTabs} from './src/components/ViewTabs';
+import type {View as ListView} from './src/todos/horizon';
 import {importTodos} from './src/note/importTodos';
 import type {Horizon} from './src/types';
 
@@ -42,6 +44,16 @@ function App(): React.JSX.Element {
   // because both the list and the header slot need it.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedTodo = todos.find(todo => todo.id === selectedId) ?? null;
+
+  // Which view the list shows. Starts on Today each time the plugin opens:
+  // the daily page is where the day's work happens.
+  const [view, setView] = useState<ListView>('today');
+
+  // A selected todo may not be in the next view, so switching clears it.
+  const changeView = (next: ListView) => {
+    setSelectedId(null);
+    setView(next);
+  };
 
   // Which todo is open in the editor. Separate from `selectedId`: the row is
   // deselected when the editor opens.
@@ -157,6 +169,7 @@ function App(): React.JSX.Element {
     return (
       <TodoList
         todos={todos}
+        view={view}
         onToggle={toggleTodo}
         selectedId={selectedId}
         onSelect={setSelectedId}
@@ -182,6 +195,7 @@ function App(): React.JSX.Element {
         <Header onClose={handleClose} onAddToPage={openImport} />
       )}
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <ViewTabs view={view} onChange={changeView} />
 
       {notice !== '' && <Text style={styles.notice}>{notice}</Text>}
       {renderBody()}

@@ -8,18 +8,22 @@ import {
   View,
 } from 'react-native';
 import type {TodoItem} from '../types';
-import {groupByBucket, logbook} from './horizon';
-import type {TodoSection} from './horizon';
+import {viewContent} from './horizon';
+import type {TodoSection, View as ListView} from './horizon';
 
 // How long a ticked todo keeps showing in its section before the Logbook takes
 // it. Long enough for the e-ink screen to draw the tick and for you to see it.
 const LINGER_MS = 1000;
 
-// The Logbook is one more section, marked so its heading can open and close.
+// The view's done todos are one more section, marked so its heading can be a
+// quiet Show/Hide link instead of a title.
 type ListSection = TodoSection & {isLogbook?: boolean};
 
 type Props = {
   todos: TodoItem[];
+  // Which view to show (Upcoming, Today, …). Named ListView here because
+  // `View` is React Native's box component.
+  view: ListView;
   onToggle: (id: string) => void;
   // Which row is in selection mode, and how to change it. Owned by App rather
   // than here, because the header slot above the list needs it too — App swaps
@@ -59,6 +63,7 @@ export function Checkbox({checked}: {checked: boolean}) {
 
 export function TodoList({
   todos,
+  view,
   onToggle,
   selectedId,
   onSelect,
@@ -98,13 +103,14 @@ export function TodoList({
     );
   }
 
-  const archived = logbook(todos, lingering);
-  const sections: ListSection[] = groupByBucket(todos, lingering);
-  if (archived.length > 0) {
+  const content = viewContent(view, todos, lingering);
+  const sections: ListSection[] = [...content.sections];
+  const done = content.done ?? [];
+  if (done.length > 0) {
     sections.push({
-      title: `Logbook · ${archived.length}`,
-      // Closed = a heading with no rows under it.
-      data: logbookOpen ? archived : [],
+      title: `${logbookOpen ? 'Hide' : 'Show'} logged · ${done.length}`,
+      // Closed = a link with no rows under it.
+      data: logbookOpen ? done : [],
       isLogbook: true,
     });
   }
@@ -119,21 +125,23 @@ export function TodoList({
         renderSectionHeader={({section}) =>
           section.isLogbook ? (
             <Pressable
-              style={styles.logbookHeading}
+              style={styles.logbookLink}
               onPress={() => setLogbookOpen(!logbookOpen)}
               accessibilityRole="button"
               accessibilityState={{expanded: logbookOpen}}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              {/* A word, not an arrow glyph: Android has no guaranteed font for those. */}
-              <Text style={styles.logbookToggle}>
-                {logbookOpen ? 'Hide' : 'Show'}
-              </Text>
+              <Text style={styles.logbookToggle}>{section.title}</Text>
             </Pressable>
           ) : (
             <Text style={[styles.sectionHeading, styles.sectionTitle]}>
               {section.title}
             </Text>
           )
+        }
+        // A view's own section can be empty; say so under its heading.
+        renderSectionFooter={({section}) =>
+          !section.isLogbook && section.data.length === 0 ? (
+            <Text style={styles.nothingHere}>Nothing here.</Text>
+          ) : null
         }
         renderItem={({item}) => (
           <View
@@ -191,17 +199,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000000',
   },
-  // Same rule as the other headings, plus Show/Hide on the right.
-  logbookHeading: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
+  // Deliberately quiet: no bold, no rule. Done todos are for looking back.
+  logbookLink: {
     marginTop: 18,
     marginHorizontal: 24,
-    paddingBottom: 4,
-    borderBottomWidth: 2,
-    borderBottomColor: '#000000',
+    paddingVertical: 8,
     backgroundColor: '#ffffff',
+  },
+  nothingHere: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    fontSize: 18,
+    fontStyle: 'italic',
+    color: '#000000',
   },
   logbookToggle: {
     fontSize: 16,
