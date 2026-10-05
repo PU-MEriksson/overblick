@@ -8,19 +8,29 @@ export type ApiResponse<T> = {
   error: {code: number; message: string} | null;
 };
 
+// One ☐ in a note that belongs to a todo (src/note/checkbox.ts). A todo can
+// have several, one per page it's written on; they're ticked together.
+export type NoteBox = {
+  notePath: string;
+  page: number;
+  // The box's `userData` tag: how it's found again in the note.
+  tag: string;
+  // Where the box was drawn, in screen px. The pen check uses it without
+  // reading the note; a box moved by hand won't be where this says.
+  rect: Rect;
+};
+
 // What one lasso capture produces: the OCR'd text, a path to a saved .sticker
 // file holding the original ink (Supernote's own ink format, not a raster
 // image), and where it came from — all best-effort, null if unavailable.
-// notePath/page/rect also locate the checkbox drawn next to the handwriting.
 export type Capture = {
   text: string;
   stickerPath: string | null;
   notePath: string | null;
   page: number | null;
   rect: Rect | null;
-  // `userData` tag of the ☐ drawn in the note (src/note/checkbox.ts); null
-  // when none could be drawn.
-  checkboxTag: string | null;
+  // The ☐ drawn next to the handwriting: one, or none if it couldn't be drawn.
+  boxes: NoteBox[];
 };
 
 // How far ahead a todo is planned. 'future' is the bullet-journal future log.
@@ -40,8 +50,11 @@ export type TodoItem = {
   // can't slip to yesterday). "Today" is worked out from this when shown.
   plannedOn: string | null;
   stickerPath: string | null;
+  // Where the handwriting was captured. Boxes added later are in `boxes`.
   notePath: string | null;
   page: number | null;
   rect: Rect | null;
-  checkboxTag: string | null;
+  // Every ☐ in a note for this todo. Empty for todos captured before boxes
+  // existed, or when drawing one failed.
+  boxes: NoteBox[];
 };

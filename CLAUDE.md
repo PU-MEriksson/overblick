@@ -101,8 +101,8 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
 - **Capture:** lasso handwriting → the plugin's lasso button → a todo with the OCR text, the
   ink as a `.sticker`, and where it came from (note, page, rect). It lands in the Inbox.
 - **Checkbox in the note:** capture draws a `☐` text element left of the handwriting, tagged
-  with `userData` (stored as `TodoItem.checkboxTag`). At the margin it overlaps the writing;
-  that's accepted.
+  with `userData` (stored in `TodoItem.boxes`, a list so a todo can have a box on several pages,
+  all ticked together). At the margin it overlaps the writing; that's accepted.
 - **Ticking stays in sync both ways.** Ticking in the list flips the box to `☑` / `☐`, also in a
   note that isn't open. A finger tap on the box toggles the todo, with the plugin view open or
   closed.
@@ -120,7 +120,8 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
   Each todo is in exactly one; empty sections are hidden.
 - **Never overdue (deliberate).** An unfinished todo stays in its section until it's ticked or
   moved. Nothing is ever marked as late.
-- **Done todos go straight to the Logbook (deliberate).** Visible done todos feel like
+- **Done todos go to the Logbook (deliberate).** Ticked in the list, a todo stays visible and
+  ticked for a second first (`LINGER_MS`), so you see the tick land. Visible done todos feel like
   clutter, even sunk to the bottom or kept only for the day; both were tried on-device. The
   Logbook is a collapsed section at the bottom ("Logbook · 12", tap Show/Hide), newest first
   by `doneOn` (the day it was ticked). Unticking one sends it back to its section.
@@ -132,7 +133,7 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
 - Ticking a box in the note (finger or pen) clears Supernote's undo history: undo can't reach
   anything drawn before the tick. Accepted.
 - A pen tick doesn't find a box that was moved by hand (a finger tap still does).
-- Todos captured before the box existed have `checkboxTag: null` and have no box.
+- Todos captured before the box existed have `boxes: []` and have no box.
 - The tap listener is off in the dev loop (no plugin host), so box taps can only be tested
   on-device.
 - Details and dead ends: `docs/api-notes.md`.

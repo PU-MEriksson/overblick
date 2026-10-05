@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type {TodoItem} from '../types';
+import type {NoteBox, TodoItem} from '../types';
+import {boxRectFor} from '../note/checkbox';
 
 // AsyncStorage isn't sandboxed to this plugin the way `getPluginDirPath()` is —
 // it writes into the Supernote host app's own storage, shared with any other
@@ -16,12 +17,18 @@ const STORAGE_KEY = 'overblick:todos';
 // 2 -> 3 (2026-10-01): added `checkboxTag`, the ☐ drawn in the note.
 // 3 -> 4 (2026-10-02): added `horizon` and `plannedOn`.
 // 4 -> 5 (2026-10-02): added `doneOn`.
-const SCHEMA_VERSION = 5;
+// 5 -> 6 (2026-10-05): `checkboxTag` replaced by `boxes`, so a todo can have a
+//   box on several pages.
+const SCHEMA_VERSION = 6;
 
 type StoredDocument = {
   schemaVersion: number;
   todos: TodoItem[];
 };
+
+// A todo as an older version may have stored it: any field can be missing,
+// and `checkboxTag` is the one box from before `boxes`.
+type OldTodo = Partial<TodoItem> & {checkboxTag?: string | null};
 
 /**
  * Reads the saved todo list. Returns an empty list when nothing has been saved
@@ -72,7 +79,7 @@ function parseDocument(raw: string): TodoItem[] {
   // Older data, though, is the normal case and must be upgraded rather than
   // rejected — the first version of this function rejected it too, which would
   // have locked the user out of their own list the moment a field was added.
-  return migrate(document.todos, version);
+  return migrate(document.todos as OldTodo[], version);
 }
 
 /**
@@ -80,19 +87,20 @@ function parseDocument(raw: string): TodoItem[] {
  * only; the upgraded list is written back by the normal save path, so a
  * migration that turns out to be wrong can be corrected before it's persisted.
  */
-function migrate(todos: TodoItem[], from: number): TodoItem[] {
+function migrate(todos: OldTodo[], from: number): TodoItem[] {
   if (from >= SCHEMA_VERSION) {
-    return todos;
+    return todos as TodoItem[];
   }
 
-  return todos.map(todo => ({
-    ...todo,
+  return todos.map(({checkboxTag, ...todo}) => ({
+    ...(todo as TodoItem),
     // Version 1 had no `done` field. Everything saved before the checkbox
     // existed was, by definition, not yet ticked off. This has to come *after*
     // the spread, or a stored `done: undefined` would win over the default.
     done: todo.done ?? false,
-    // Before version 3 nothing was drawn in the note, so there's no box to find.
-    checkboxTag: todo.checkboxTag ?? null,
+    // Before version 6 a todo had at most one box, drawn left of the
+    // handwriting at `rect`. Before version 3 it had none.
+    boxes: todo.boxes ?? oldBox(todo, checkboxTag),
     // Before version 4 nothing was planned, so everything starts in the Inbox.
     horizon: todo.horizon ?? null,
     plannedOn: todo.plannedOn ?? null,
@@ -100,4 +108,14 @@ function migrate(todos: TodoItem[], from: number): TodoItem[] {
     // todo means "some earlier day", which sends it to the Logbook.
     doneOn: todo.doneOn ?? null,
   }));
+}
+
+// The single box a version 3-5 todo had, as a `NoteBox`. Its rect is worked
+// out the same way it was drawn.
+function oldBox(todo: OldTodo, tag: string | null | undefined): NoteBox[] {
+  const {notePath, page, rect} = todo;
+  if (!tag || !notePath || page === null || page === undefined || !rect) {
+    return [];
+  }
+  return [{notePath, page, tag, rect: boxRectFor(rect)}];
 }

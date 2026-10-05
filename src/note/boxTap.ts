@@ -7,7 +7,7 @@ import {
 import type {Element, MotionEvent, Rect} from 'sn-plugin-lib';
 import type {ApiResponse} from '../types';
 import {ensureLoaded, getState, toggleTodo} from '../todos/todoStore';
-import {boxRectFor, deleteTickStroke} from './checkbox';
+import {deleteTickStroke} from './checkbox';
 
 // Ticking a ☐ in the note. Registered from index.js so it works while the
 // plugin view is closed. Touch x/y are the same screen px as the boxes'
@@ -143,18 +143,17 @@ function recycle(elements: Element[]) {
 // writing doesn't cost a read of the note for every letter. A box the user
 // has moved by hand won't pass; a finger tap still works on it.
 function nearAnyBox(x: number, y: number): boolean {
-  return getState().todos.some(todo => {
-    if (todo.done || todo.checkboxTag === null || todo.rect === null) {
-      return false;
-    }
-    const box = boxRectFor(todo.rect);
-    return (
-      x >= box.left - HIT_PAD_PX &&
-      x <= box.right + HIT_PAD_PX &&
-      y >= box.top - HIT_PAD_PX &&
-      y <= box.bottom + HIT_PAD_PX
-    );
-  });
+  return getState().todos.some(
+    todo =>
+      !todo.done &&
+      todo.boxes.some(
+        box =>
+          x >= box.rect.left - HIT_PAD_PX &&
+          x <= box.rect.right + HIT_PAD_PX &&
+          y >= box.rect.top - HIT_PAD_PX &&
+          y <= box.rect.bottom + HIT_PAD_PX,
+      ),
+  );
 }
 
 /** Rejects instead of waiting forever on a call that never answers. */
@@ -193,11 +192,8 @@ async function handleTap(x: number, y: number, tap: Tap): Promise<void> {
 
     // From memory: most taps are on pages with no boxes and stop here,
     // without reading the note.
-    const todosHere = getState().todos.filter(
-      todo =>
-        todo.notePath === notePath &&
-        todo.page === page &&
-        todo.checkboxTag !== null,
+    const todosHere = getState().todos.filter(todo =>
+      todo.boxes.some(box => box.notePath === notePath && box.page === page),
     );
     if (todosHere.length === 0) {
       return;
@@ -227,16 +223,19 @@ async function handleTap(x: number, y: number, tap: Tap): Promise<void> {
       }
     }
 
-    const hit = todosHere.find(todo => {
-      const rect = rects.get(todo.checkboxTag as string);
-      return (
-        rect !== undefined &&
-        x >= rect.left - HIT_PAD_PX &&
-        x <= rect.right + HIT_PAD_PX &&
-        y >= rect.top - HIT_PAD_PX &&
-        y <= rect.bottom + HIT_PAD_PX
-      );
-    });
+    // Tags are unique, so a box found on this page is this page's box.
+    const hit = todosHere.find(todo =>
+      todo.boxes.some(box => {
+        const rect = rects.get(box.tag);
+        return (
+          rect !== undefined &&
+          x >= rect.left - HIT_PAD_PX &&
+          x <= rect.right + HIT_PAD_PX &&
+          y >= rect.top - HIT_PAD_PX &&
+          y <= rect.bottom + HIT_PAD_PX
+        );
+      }),
+    );
     if (!hit || (tap.kind === 'pen' && hit.done)) {
       return;
     }

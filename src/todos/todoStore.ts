@@ -1,5 +1,5 @@
 import {FileUtils} from 'sn-plugin-lib';
-import type {Capture, Horizon, TodoItem} from '../types';
+import type {Capture, Horizon, NoteBox, TodoItem} from '../types';
 import {loadTodos, saveTodos} from './todoStorage';
 import {todayKey} from './horizon';
 import {MOCK_TODOS} from './mockTodos';
@@ -115,8 +115,8 @@ export async function addTodo(capture: Capture) {
   ]);
 }
 
-// Updates the list first, then mirrors it onto the box in the note. The note
-// write isn't awaited: if the box is gone, the list is still right.
+// Updates the list first, then mirrors it onto every box in the notes. The
+// note writes aren't awaited: if a box is gone, the list is still right.
 export async function toggleTodo(id: string) {
   if (!(await ensureLoaded())) {
     return;
@@ -134,9 +134,14 @@ export async function toggleTodo(id: string) {
     ),
   );
 
-  const {notePath, page, checkboxTag} = todo;
-  if (notePath !== null && page !== null && checkboxTag !== null) {
-    setCheckbox(notePath, page, checkboxTag, done);
+  setBoxes(todo.boxes, done);
+}
+
+// One box at a time, not all at once: each write saves the open note and
+// reloads it, and two of those overlapping could undo each other.
+async function setBoxes(boxes: NoteBox[], done: boolean) {
+  for (const box of boxes) {
+    await setCheckbox(box.notePath, box.page, box.tag, done);
   }
 }
 

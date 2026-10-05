@@ -144,7 +144,7 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
       // Last, because it reloads the page, which can drop the lasso selection
       // the calls above read from. Best-effort: no box still keeps the todo.
       const {notePath, page, rect} = location;
-      const checkboxTag =
+      const box =
         notePath !== null && page !== null && rect !== null
           ? await insertCheckbox(notePath, page, rect)
           : null;
@@ -153,7 +153,7 @@ export function useLassoCapture(onCaptured: (capture: Capture) => void) {
         text: textRes.result ?? '',
         stickerPath,
         ...location,
-        checkboxTag,
+        boxes: box !== null ? [box] : [],
       });
       setStatus('idle');
     };

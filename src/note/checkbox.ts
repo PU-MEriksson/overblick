@@ -6,7 +6,7 @@ import {
   PluginNoteAPI,
 } from 'sn-plugin-lib';
 import type {Rect} from 'sn-plugin-lib';
-import type {ApiResponse} from '../types';
+import type {ApiResponse, NoteBox} from '../types';
 
 // The on-page half of a todo: a text element holding one glyph, found again by
 // its `userData` tag. Needs firmware >= 3.29.45 — older firmware drops userData
@@ -70,15 +70,15 @@ function createTag(): string {
 }
 
 /**
- * Draws a ☐ next to the lassoed handwriting. Returns the tag that finds it
- * again, or null if it couldn't be drawn — the todo is still worth keeping
- * then, so this never throws.
+ * Draws a ☐ next to the lassoed handwriting. Returns the box, or null if it
+ * couldn't be drawn — the todo is still worth keeping then, so this never
+ * throws.
  */
 export async function insertCheckbox(
   notePath: string,
   page: number,
   lasso: Rect,
-): Promise<string | null> {
+): Promise<NoteBox | null> {
   try {
     if (!(await ensureNotePermissions())) {
       return null;
@@ -97,13 +97,14 @@ export async function insertCheckbox(
     const element = created.result;
 
     const tag = createTag();
+    const rect = boxRectFor(lasso);
     element.userData = tag;
     element.pageNum = page;
     // Every style field set, so the box doesn't inherit the user's last text style.
     element.textBox = {
       fontSize: BOX_FONT_SIZE,
       textContentFull: GLYPH_OPEN,
-      textRect: boxRectFor(lasso),
+      textRect: rect,
       textAlign: 0,
       textBold: 0,
       textItalics: 0,
@@ -122,7 +123,7 @@ export async function insertCheckbox(
     }
 
     await redrawPage();
-    return tag;
+    return {notePath, page, tag, rect};
   } catch {
     return null;
   }
