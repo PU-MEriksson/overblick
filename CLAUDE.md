@@ -88,7 +88,9 @@ no recurring tasks, tags, specific dates or filters.
 - `src/lasso/useLassoCapture.ts`: the lasso button (id `200`, registered in `index.js`) →
   OCR + `.sticker` ink snapshot + note path/page/rect + the checkbox in the note.
 - `src/note/checkbox.ts`: everything that writes into a note: permissions, drawing the `☐`
-  (`insertCheckbox`) and flipping it (`setCheckbox`).
+  (`insertCheckbox`), typed todos (`insertTodoLines`) and flipping a box (`setCheckbox`).
+- `src/note/importTodos.ts`: puts todos onto the open page, below what's written there.
+  `src/note/pageContent.ts` finds how far down the page anything is written.
 - `src/types.ts`: `Capture` and `TodoItem`.
 - `src/note/boxTap.ts`: the plugin's only motion and pen-up listeners (registered in
   `index.js`). A finger tap, pen tap or small pen tick on a box in the note ticks its todo.
@@ -114,6 +116,12 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
   exactly that stroke; if not, the ink stays. Never delete other handwriting.
 - **Edit:** long-press a todo → action bar → Edit: fix the OCR text and choose *when* (Inbox /
   Today / Week / Month / Future). Delete is in the same bar.
+- **Add to page** *(confirmed on-device 2026-10-05)*: long-press a todo → action bar → Add to
+  page. It's written onto the open page as typed text (font 44, matching Malin's handwriting)
+  with a ☐ (font 54, like a lasso box), 40 px below whatever is written, lined up with
+  handwriting at the usual left edge. Box and text are two elements, moved together with the
+  lasso. The new box is linked: ticking any of a todo's boxes ticks them all. A todo whose box
+  is still on that page isn't added twice.
 - **Time horizon:** `horizon` (`'day' | 'week' | 'month' | 'future'`, `null` = Inbox) plus
   `plannedOn` (local `'YYYY-MM-DD'`, stamped only when the horizon changes).
 - **The list is the Upcoming view:** sections Inbox, Today, This week, This month, Future log.

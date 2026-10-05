@@ -53,16 +53,16 @@ export function ActionBar({
         <Image source={require('../../assets/edit.png')} style={styles.icon} />
         <Text style={styles.actionBarButtonText}>Edit</Text>
       </Pressable>
-      {/* Temporary, to try importing one todo before the import screen exists. */}
+      {/* Writes this one todo onto the page that's open in the note. */}
       <Pressable
         style={styles.actionBarButton}
         onPress={onToPage}
         accessibilityRole="button">
         <Image
-          source={require('../../assets/mountain.png')}
+          source={require('../../assets/to-page.png')}
           style={styles.icon}
         />
-        <Text style={styles.actionBarButtonText}>To page</Text>
+        <Text style={styles.actionBarButtonText}>Add to page</Text>
       </Pressable>
       <Pressable
         style={styles.actionBarButton}
