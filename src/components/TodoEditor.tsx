@@ -9,6 +9,11 @@ import {
   View,
 } from 'react-native';
 import type {Horizon, TodoItem} from '../types';
+import {boxLevel} from '../todos/horizon';
+
+// TEMPORARY: shows the planned date and the todo's boxes, for trying out
+// migration on-device. Not `__DEV__`: that's false in the plugin package.
+const SHOW_DEBUG = true;
 
 type Props = {
   todo: TodoItem;
@@ -92,6 +97,8 @@ export function TodoEditor({
             })}
           </View>
 
+          {SHOW_DEBUG && <Text style={styles.debug}>{debugLine(todo)}</Text>}
+
           <View style={styles.modalButtonRow}>
             <Pressable style={styles.modalButton} onPress={onCancel}>
               <Text style={styles.modalButtonText}>Cancel</Text>
@@ -109,6 +116,18 @@ export function TodoEditor({
       </View>
     </Modal>
   );
+}
+
+// E.g. "Planned 2026-10-05 · Boxes: month p.3 · day? p.12". A `?` means the
+// box's level isn't stored, so it counts as the todo's own list.
+function debugLine(todo: TodoItem): string {
+  const boxes = todo.boxes.map(box => {
+    const level = boxLevel(box, todo) ?? 'inbox';
+    return `${level}${box.level === null ? '?' : ''} p.${box.page}`;
+  });
+  return `Planned ${todo.plannedOn ?? '–'} · Boxes: ${
+    boxes.length > 0 ? boxes.join(' · ') : 'none'
+  }`;
 }
 
 const styles = StyleSheet.create({
@@ -165,6 +184,12 @@ const styles = StyleSheet.create({
   // The chosen horizon is filled black, like the Save button: no colour needed.
   selected: {
     backgroundColor: '#000000',
+  },
+  debug: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginBottom: 24,
+    color: '#000000',
   },
   modalButtonRow: {
     flexDirection: 'row',

@@ -1,10 +1,12 @@
 import {PluginCommAPI, PluginFileAPI, PluginNoteAPI} from 'sn-plugin-lib';
 import type {Element} from 'sn-plugin-lib';
-import type {ApiResponse, TodoItem} from '../types';
-import {addBoxes} from '../todos/todoStore';
+import type {ApiResponse, Horizon, TodoItem} from '../types';
+import {recordImport} from '../todos/todoStore';
 import {
   ensureNotePermissions,
+  GLYPH_MIGRATED,
   insertTodoLines,
+  setBoxGlyph,
   todoLineLayout,
 } from './checkbox';
 import type {TodoLine} from './checkbox';
@@ -120,18 +122,28 @@ export async function todosOnOpenPage(
   }
 }
 
-// Todo ids, sorted by what happened to them. `ok: false` means nothing was
-// written; `reason` says which step failed, for showing on screen.
+// Todo ids, sorted by what happened to them. `migrated` are some of `added`.
+// `ok: false` means nothing was written; `reason` says which step failed, for
+// showing on screen.
 export type ImportResult =
-  | {ok: true; added: string[]; alreadyHere: string[]; didntFit: string[]}
+  | {
+      ok: true;
+      added: string[];
+      migrated: string[];
+      alreadyHere: string[];
+      didntFit: string[];
+    }
   | {ok: false; reason: string};
 
 /**
  * Writes todos onto the open page, in the order given, and links their boxes.
+ * `target` is the list the page is for: the todos are planned or migrated to
+ * it (see recordImport). null leaves their horizon alone.
  * `onStep` hears what's happening, for showing while it works.
  */
 export async function importTodos(
   todos: TodoItem[],
+  target: Horizon | null,
   onStep: (text: string) => void = () => {},
 ): Promise<ImportResult> {
   let page: OpenPage | null = null;
@@ -155,6 +167,7 @@ export async function importTodos(
     const lines: TodoLine[] = [];
     const placed: TodoItem[] = [];
     const didntFit: string[] = [];
+    let migrated: string[] = [];
     for (const todo of todos) {
       if (isHere(todo)) {
         continue;
@@ -181,12 +194,30 @@ export async function importTodos(
           ? 'Writing 1 todo…'
           : `Writing ${lines.length} todos…`,
       );
-      const boxes = await insertTodoLines(here.notePath, here.page, lines);
-      await addBoxes(placed.map((todo, i) => ({id: todo.id, box: boxes[i]})));
+      const boxes = await insertTodoLines(
+        here.notePath,
+        here.page,
+        lines,
+        target,
+      );
+      const record = await recordImport(
+        placed.map((todo, i) => ({id: todo.id, box: boxes[i]})),
+        target,
+      );
+      migrated = record.migrated;
+
+      // One box at a time: each write saves and reloads the note. A box that
+      // isn't found (erased) is skipped; it's unlinked in the list already.
+      step = 'marking the old boxes as migrated';
+      for (const box of record.toMark) {
+        onStep('Marking the old box as migrated…');
+        await setBoxGlyph(box.notePath, box.page, box.tag, GLYPH_MIGRATED);
+      }
     }
     return {
       ok: true,
       added: placed.map(todo => todo.id),
+      migrated,
       alreadyHere,
       didntFit,
     };

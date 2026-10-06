@@ -33,7 +33,6 @@ function App(): React.JSX.Element {
     toggleTodo,
     deleteTodo,
     editTodo,
-    planTodos,
     status: storageStatus,
     errorMessage: storageError,
   } = useTodos();
@@ -113,7 +112,7 @@ function App(): React.JSX.Element {
     setSelectedId(null);
     setNotice('');
     setImporting(true);
-    const result = await importTodos([selectedTodo]);
+    const result = await importTodos([selectedTodo], null);
     setImporting(false);
     if (!result.ok) {
       setNotice(result.reason);
@@ -135,7 +134,7 @@ function App(): React.JSX.Element {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-        <ImportScreen todos={todos} onPlan={planTodos} onClose={closeImport} />
+        <ImportScreen todos={todos} onClose={closeImport} />
       </View>
     );
   }

@@ -1,7 +1,7 @@
 import {FileUtils} from 'sn-plugin-lib';
 import type {Capture, Horizon, NoteBox, TodoItem} from '../types';
 import {loadTodos, saveTodos} from './todoStorage';
-import {todayKey} from './horizon';
+import {boxLevel, importKind, todayKey} from './horizon';
 import {MOCK_TODOS} from './mockTodos';
 import {setCheckbox} from '../note/checkbox';
 
@@ -145,49 +145,67 @@ async function setBoxes(boxes: NoteBox[], done: boolean) {
   }
 }
 
-// Links boxes just written into a note, so ticking any box ticks them all.
-// A todo's old box on the same page is dropped: import only writes a new one
-// where the old one is gone (erased).
-export async function addBoxes(added: {id: string; box: NoteBox}[]) {
+// What adding to a page did to the list: which todos were migrated, and their
+// old boxes, unlinked now, which the caller turns into `>` in the note.
+export type ImportRecord = {migrated: string[]; toMark: NoteBox[]};
+
+/**
+ * Records todos just written onto a page, in one change: links each new box,
+ * and plans or migrates the todo as `target` (null: leaves the horizon alone).
+ * Planning keeps every old box linked, so ticking any box ticks them all.
+ * Migrating unlinks the old box of the same list and returns it in `toMark`.
+ * A todo's old box on the same page is dropped: import only writes a new one
+ * where the old one is gone (erased).
+ */
+export async function recordImport(
+  added: {id: string; box: NoteBox}[],
+  target: Horizon | null,
+): Promise<ImportRecord> {
+  const record: ImportRecord = {migrated: [], toMark: []};
   if (!(await ensureLoaded())) {
-    return;
+    return record;
   }
+  const today = todayKey();
   commit(
     state.todos.map(todo => {
       const box = added.find(other => other.id === todo.id)?.box;
       if (!box) {
         return todo;
       }
-      const elsewhere = todo.boxes.filter(
+      let boxes = todo.boxes.filter(
         old => old.notePath !== box.notePath || old.page !== box.page,
       );
-      return {...todo, boxes: [...elsewhere, box]};
+      let plannedOn = todo.plannedOn;
+      // Decided before anything changes: it depends on the old horizon and date.
+      if (target !== null && importKind(todo, target, today) === 'migrate') {
+        const old = boxes.filter(other => boxLevel(other, todo) === target);
+        record.migrated.push(todo.id);
+        record.toMark.push(...old);
+        boxes = boxes.filter(other => !old.includes(other));
+        // Same horizon, so withHorizon below won't restamp it.
+        plannedOn = today;
+      }
+      const linked = {...todo, plannedOn, boxes: [...boxes, box]};
+      return target === null ? linked : withHorizon(linked, target);
     }),
   );
-}
-
-// Sets the horizon of several todos, e.g. the ones just added to today's page.
-export async function planTodos(ids: string[], horizon: Horizon) {
-  if (!(await ensureLoaded())) {
-    return;
-  }
-  commit(
-    state.todos.map(todo =>
-      ids.includes(todo.id) ? withHorizon(todo, horizon) : todo,
-    ),
-  );
+  return record;
 }
 
 // `plannedOn` is stamped only when the horizon changes, so re-saving the same
-// horizon keeps the original date.
+// horizon keeps the original date. Boxes of unknown level belonged to the old
+// list, so they're told so before it changes.
 function withHorizon(todo: TodoItem, horizon: Horizon | null): TodoItem {
-  const plannedOn =
-    horizon === todo.horizon
-      ? todo.plannedOn
-      : horizon === null
-      ? null
-      : todayKey();
-  return {...todo, horizon, plannedOn};
+  if (horizon === todo.horizon) {
+    return todo;
+  }
+  const oldHorizon = todo.horizon;
+  const boxes =
+    oldHorizon === null
+      ? todo.boxes
+      : todo.boxes.map(box => ({...box, level: box.level ?? oldHorizon}));
+  const plannedOn = horizon === null ? null : todayKey();
+  return {...todo, horizon, plannedOn, boxes};
 }
 
 // Saves the editor: fixed OCR text and the chosen horizon. `plannedOn` is

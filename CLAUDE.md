@@ -64,7 +64,7 @@ Decided 2026-10-05, after a weekend of real use. In this order:
    new ☐, on the open page. Going from a bigger list to a smaller one (month → week → day) is
    *planning*: the old box stays and is **linked**, so ticking any box ticks them all. A todo
    gets a list of boxes instead of one `checkboxTag`. The import screen says what will happen.
-3. **Import, migration.** Importing from an earlier day/week at the same level is *migration*:
+3. *(Built 2026-10-06, not yet tried on-device.)* **Import, migration.** Importing from an earlier day/week at the same level is *migration*:
    the old box becomes `>` and is unlinked.
 4. *(Built 2026-10-05, being tried out.)* Views and navigation: tabs Inbox, Today, Week, Month,
    Future, Upcoming, Logbook. Opens on Today.

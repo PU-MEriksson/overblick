@@ -19,7 +19,8 @@ const STORAGE_KEY = 'overblick:todos';
 // 4 -> 5 (2026-10-02): added `doneOn`.
 // 5 -> 6 (2026-10-05): `checkboxTag` replaced by `boxes`, so a todo can have a
 //   box on several pages.
-const SCHEMA_VERSION = 6;
+// 6 -> 7 (2026-10-06): each box got `level`, the list it was written for.
+const SCHEMA_VERSION = 7;
 
 type StoredDocument = {
   schemaVersion: number;
@@ -100,7 +101,11 @@ function migrate(todos: OldTodo[], from: number): TodoItem[] {
     done: todo.done ?? false,
     // Before version 6 a todo had at most one box, drawn left of the
     // handwriting at `rect`. Before version 3 it had none.
-    boxes: todo.boxes ?? oldBox(todo, checkboxTag),
+    // Before version 7 no box knew its level; null means "the todo's own".
+    boxes: (todo.boxes ?? oldBox(todo, checkboxTag)).map(box => ({
+      ...box,
+      level: box.level ?? null,
+    })),
     // Before version 4 nothing was planned, so everything starts in the Inbox.
     horizon: todo.horizon ?? null,
     plannedOn: todo.plannedOn ?? null,
@@ -117,5 +122,5 @@ function oldBox(todo: OldTodo, tag: string | null | undefined): NoteBox[] {
   if (!tag || !notePath || page === null || page === undefined || !rect) {
     return [];
   }
-  return [{notePath, page, tag, rect: boxRectFor(rect)}];
+  return [{notePath, page, tag, rect: boxRectFor(rect), level: null}];
 }

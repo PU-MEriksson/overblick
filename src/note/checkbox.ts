@@ -6,7 +6,7 @@ import {
   PluginNoteAPI,
 } from 'sn-plugin-lib';
 import type {Rect} from 'sn-plugin-lib';
-import type {ApiResponse, NoteBox} from '../types';
+import type {ApiResponse, Horizon, NoteBox} from '../types';
 
 // The on-page half of a todo: a text element holding one glyph, found again by
 // its `userData` tag. Needs firmware >= 3.29.45 — older firmware drops userData
@@ -14,6 +14,9 @@ import type {ApiResponse, NoteBox} from '../types';
 
 export const GLYPH_OPEN = '☐';
 export const GLYPH_DONE = '☑';
+// A migrated box: the todo was carried on to a later page, like a
+// bullet journal's `>`. No longer linked to the todo.
+export const GLYPH_MIGRATED = '>';
 
 const FILE_READ = 'plugin.permission.FILE:READ';
 const FILE_WRITE = 'plugin.permission.FILE:WRITE';
@@ -101,7 +104,8 @@ export async function insertCheckbox(
     await insertTexts(notePath, page, [
       {content: GLYPH_OPEN, rect, fontSize: BOX_FONT_SIZE, tag},
     ]);
-    return {notePath, page, tag, rect};
+    // Its level is unknown: a lasso capture lands in the Inbox.
+    return {notePath, page, tag, rect, level: null};
   } catch {
     return null;
   }
@@ -149,13 +153,15 @@ export type TodoLine = {text: string; layout: TodoLineLayout};
  * Writes todos as typed text, each with a ☐ in front, in one write. Two
  * elements per todo, because one text element has one font size and the box
  * must match the lasso boxes. Like a handwritten todo, they're moved together
- * with the lasso. Returns the boxes in the same order as `lines`. Throws with
- * the reason if nothing could be written.
+ * with the lasso. `level` is the list the page is for (null: the todos' own).
+ * Returns the boxes in the same order as `lines`. Throws with the reason if
+ * nothing could be written.
  */
 export async function insertTodoLines(
   notePath: string,
   page: number,
   lines: TodoLine[],
+  level: Horizon | null,
 ): Promise<NoteBox[]> {
   const tags = lines.map(() => createTag());
   await insertTexts(
@@ -182,6 +188,7 @@ export async function insertTodoLines(
     page,
     tag: tags[i],
     rect: line.layout.box,
+    level,
   }));
 }
 
@@ -259,16 +266,26 @@ async function insertTexts(
   }
 }
 
-/**
- * Sets the box to ☑ (done) or ☐. Works whether or not its note is open.
- * Returns false if the box couldn't be found or changed — e.g. the user erased
- * it — which is harmless: the todo list is the source of truth.
- */
-export async function setCheckbox(
+/** Sets the box to ☑ (done) or ☐. See setBoxGlyph. */
+export function setCheckbox(
   notePath: string,
   page: number,
   tag: string,
   done: boolean,
+): Promise<boolean> {
+  return setBoxGlyph(notePath, page, tag, done ? GLYPH_DONE : GLYPH_OPEN);
+}
+
+/**
+ * Changes what the box shows (☐, ☑ or >). Works whether or not its note is
+ * open. Returns false if the box couldn't be found or changed — e.g. the user
+ * erased it — which is harmless: the todo list is the source of truth.
+ */
+export async function setBoxGlyph(
+  notePath: string,
+  page: number,
+  tag: string,
+  glyph: string,
 ): Promise<boolean> {
   try {
     if (!(await ensureNotePermissions())) {
@@ -290,9 +307,7 @@ export async function setCheckbox(
     let changed = false;
     const box = elements.find(el => el.userData === tag);
     if (box) {
-      (box.textBox as {textContentFull: string}).textContentFull = done
-        ? GLYPH_DONE
-        : GLYPH_OPEN;
+      (box.textBox as {textContentFull: string}).textContentFull = glyph;
       box.pageNum = page;
       const modified = (await PluginFileAPI.modifyElements(notePath, page, [
         box,

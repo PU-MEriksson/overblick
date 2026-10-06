@@ -1,4 +1,4 @@
-import type {TodoItem} from '../types';
+import type {Horizon, NoteBox, TodoItem} from '../types';
 
 // The sections of the Upcoming view. Each todo is in exactly one.
 export type Bucket = 'inbox' | 'today' | 'week' | 'month' | 'future';
@@ -152,4 +152,55 @@ export function todayKey(now: Date = new Date()): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+// A 'YYYY-MM-DD' key as a local Date, the reverse of todayKey.
+function fromKey(key: string): Date {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+// The Monday of the key's week, as a key. getDay() is 0 for Sunday.
+function mondayOf(key: string): string {
+  const date = fromKey(key);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return todayKey(date);
+}
+
+/** Whether two 'YYYY-MM-DD' keys are the same day, week (Monday start) or month. */
+export function samePeriod(a: string, b: string, level: Horizon): boolean {
+  switch (level) {
+    case 'day':
+      return a === b;
+    case 'week':
+      return mondayOf(a) === mondayOf(b);
+    case 'month':
+      return a.slice(0, 7) === b.slice(0, 7);
+    case 'future':
+      // The future log isn't split by month yet: it's always the same one.
+      return true;
+  }
+}
+
+/**
+ * What adding a todo to a page as `target` does. Same list, planned in an
+ * earlier day/week/month: migration (its old box there becomes `>`).
+ * Anything else: planning (the old boxes stay, linked). Without a
+ * `plannedOn` we can't tell it's earlier, so it's planning.
+ */
+export function importKind(
+  todo: TodoItem,
+  target: Horizon,
+  today: string,
+): 'plan' | 'migrate' {
+  return todo.horizon === target &&
+    todo.plannedOn !== null &&
+    !samePeriod(todo.plannedOn, today, target)
+    ? 'migrate'
+    : 'plan';
+}
+
+/** The list a box belongs to. One of unknown level counts as the todo's own. */
+export function boxLevel(box: NoteBox, todo: TodoItem): Horizon | null {
+  return box.level ?? todo.horizon;
 }

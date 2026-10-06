@@ -18,6 +18,9 @@ export type NoteBox = {
   // Where the box was drawn, in screen px. The pen check uses it without
   // reading the note; a box moved by hand won't be where this says.
   rect: Rect;
+  // The list the box was written for. null = not known (a lasso capture):
+  // it counts as the todo's current horizon (`boxLevel` in horizon.ts).
+  level: Horizon | null;
 };
 
 // What one lasso capture produces: the OCR'd text, a path to a saved .sticker

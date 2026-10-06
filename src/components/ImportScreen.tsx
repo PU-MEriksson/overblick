@@ -8,25 +8,23 @@ import {
   View,
 } from 'react-native';
 import type {Horizon, TodoItem} from '../types';
-import {groupByBucket} from '../todos/horizon';
+import {groupByBucket, importKind, todayKey} from '../todos/horizon';
 import {Checkbox} from '../todos/TodoList';
 import {importTodos, todosOnOpenPage} from '../note/importTodos';
 import type {ImportResult} from '../note/importTodos';
 
 type Props = {
   todos: TodoItem[];
-  // Sets the horizon of the todos that were added.
-  onPlan: (ids: string[], horizon: Horizon) => void;
   // Back to the list, with what happened ('' if nothing was tried).
   onClose: (summary: string) => void;
 };
 
 // What adding to a page plans the todos as. Bigger lists (future log) aren't
 // here: those are planned in the plugin, not on a page.
-const TARGETS: {value: Horizon; label: string}[] = [
-  {value: 'day', label: 'Today'},
-  {value: 'week', label: 'This week'},
-  {value: 'month', label: 'This month'},
+const TARGETS: {value: Horizon; label: string; period: string}[] = [
+  {value: 'day', label: 'Today', period: 'day'},
+  {value: 'week', label: 'This week', period: 'week'},
+  {value: 'month', label: 'This month', period: 'month'},
 ];
 
 // What the screen is doing: reading the page on opening, letting you pick,
@@ -41,11 +39,7 @@ type Phase =
  * Pick todos and write them onto the page open in the note. Shown instead of
  * the list while open. The page is written in the order they were picked.
  */
-export function ImportScreen({
-  todos,
-  onPlan,
-  onClose,
-}: Props): React.JSX.Element {
+export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
   const [target, setTarget] = useState<Horizon>('day');
   // Ids in the order they were picked.
   const [picked, setPicked] = useState<string[]>([]);
@@ -83,12 +77,9 @@ export function ImportScreen({
       .map(id => todos.find(todo => todo.id === id))
       .filter((todo): todo is TodoItem => todo !== undefined);
     setPhase({kind: 'writing', step: 'Starting…'});
-    const result = await importTodos(chosen, step =>
+    const result = await importTodos(chosen, target, step =>
       setPhase({kind: 'writing', step}),
     );
-    if (result.ok) {
-      onPlan(result.added, target);
-    }
     onClose(summarize(result));
   };
 
@@ -112,6 +103,8 @@ export function ImportScreen({
     }
 
     const sections = groupByBucket(todos);
+    const today = todayKey();
+    const period = TARGETS.find(option => option.value === target)?.period;
     return (
       <>
         <View style={styles.targetArea}>
@@ -137,6 +130,10 @@ export function ImportScreen({
           <Text style={styles.hint}>
             Their boxes on other pages stay. Ticking one ticks them all.
           </Text>
+          <Text style={styles.hint}>
+            Already in this list from an earlier {period}? It migrates: the
+            old box becomes &gt;.
+          </Text>
         </View>
 
         <ScrollView style={styles.list}>
@@ -154,6 +151,8 @@ export function ImportScreen({
                   );
                 }
                 const order = picked.indexOf(todo.id);
+                const migrates =
+                  order >= 0 && importKind(todo, target, today) === 'migrate';
                 return (
                   <Pressable
                     key={todo.id}
@@ -162,7 +161,14 @@ export function ImportScreen({
                     accessibilityRole="checkbox"
                     accessibilityState={{checked: order >= 0}}>
                     <Checkbox checked={order >= 0} />
-                    <Text style={styles.rowText}>{todo.text}</Text>
+                    <View style={styles.rowBody}>
+                      <Text style={styles.bodyText}>{todo.text}</Text>
+                      {migrates && (
+                        <Text style={styles.migrates}>
+                          Migrates: the old box becomes &gt;
+                        </Text>
+                      )}
+                    </View>
                     {/* Its place on the page: picked first = written first. */}
                     {order >= 0 && (
                       <Text style={styles.order}>{order + 1}</Text>
@@ -222,7 +228,13 @@ function summarize(result: ImportResult): string {
   }
   const parts: string[] = [];
   if (result.added.length > 0) {
-    parts.push(`Added ${count(result.added.length)} to the page.`);
+    parts.push(
+      result.migrated.length > 0
+        ? `Added ${count(result.added.length)} to the page, ${
+            result.migrated.length
+          } migrated.`
+        : `Added ${count(result.added.length)} to the page.`,
+    );
   }
   if (result.alreadyHere.length > 0) {
     parts.push(`${count(result.alreadyHere.length)} already there.`);
@@ -340,9 +352,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
+  rowBody: {
+    flex: 1,
+  },
   rowText: {
     flex: 1,
     fontSize: 18,
+    color: '#000000',
+  },
+  // rowText without flex: inside rowBody it would squash the text's height.
+  bodyText: {
+    fontSize: 18,
+    color: '#000000',
+  },
+  migrates: {
+    marginTop: 4,
+    fontSize: 15,
+    fontStyle: 'italic',
     color: '#000000',
   },
   // Not pickable: italic, and no box in front.
