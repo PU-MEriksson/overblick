@@ -291,7 +291,7 @@ function summarize(result: ImportResult): string {
 const BUTTON_RADIUS = 8;
 // A little bigger than the list's 24 px box, to fit a two-digit number.
 const PICK_SIZE = 30;
-const GREY = '#656464';
+const GREY = '#767676';
 
 const styles = StyleSheet.create({
   container: {
