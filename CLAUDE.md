@@ -126,9 +126,9 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
 - **Add to page screen** *(confirmed on-device 2026-10-05; opened from the note's sidebar button
   since 2026-10-06, not yet tried)*: the note's sidebar → Add to page (button id `400`). When
   it's done it closes and you're back in the note; if something failed or didn't fit, it shows
-  the list with what happened. Pick todos
-  (written in the order picked), choose Plan as Today / This week / This month (sets their
-  horizon), Add. Todos already on the page can't be picked. Shows each step while it works. The UI is a first version; Malin is
+  the list with what happened. Choose the page
+  you're on (Daily / Weekly / Monthly log, which also sets the horizon); only that list's open
+  todos are shown. Pick todos (written in the order picked), Add. Cancel sits beside Add. Todos already on the page can't be picked. Shows each step while it works. The UI is a first version; Malin is
   trying it out before deciding how it should feel.
 - **Time horizon:** `horizon` (`'day' | 'week' | 'month' | 'future'`, `null` = Inbox) plus
   `plannedOn` (local `'YYYY-MM-DD'`, stamped only when the horizon changes).

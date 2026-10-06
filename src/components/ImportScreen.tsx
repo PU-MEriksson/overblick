@@ -8,8 +8,8 @@ import {
   View,
 } from 'react-native';
 import type {Horizon, TodoItem} from '../types';
-import {groupByBucket, importKind, todayKey} from '../todos/horizon';
-import {Checkbox} from '../todos/TodoList';
+import {bucketFor, importKind, todayKey} from '../todos/horizon';
+import type {Bucket} from '../todos/horizon';
 import {importTodos, todosOnOpenPage} from '../note/importTodos';
 import type {ImportResult} from '../note/importTodos';
 
@@ -20,12 +20,18 @@ type Props = {
   onClose: (summary: string, backToNote: boolean) => void;
 };
 
-// What adding to a page plans the todos as. Bigger lists (future log) aren't
-// here: those are planned in the plugin, not on a page.
-const TARGETS: {value: Horizon; label: string; period: string}[] = [
-  {value: 'day', label: 'Today', period: 'day'},
-  {value: 'week', label: 'This week', period: 'week'},
-  {value: 'month', label: 'This month', period: 'month'},
+// The page you're on, which is also what the todos are planned as. Each shows
+// only its own list's todos. Bigger lists (future log) aren't here: those are
+// planned in the plugin, not on a page.
+const TARGETS: {
+  value: Horizon;
+  label: string;
+  period: string;
+  bucket: Bucket;
+}[] = [
+  {value: 'day', label: 'Daily log', period: 'day', bucket: 'today'},
+  {value: 'week', label: 'Weekly log', period: 'week', bucket: 'week'},
+  {value: 'month', label: 'Monthly log', period: 'month', bucket: 'month'},
 ];
 
 // What the screen is doing: reading the page on opening, letting you pick,
@@ -67,6 +73,12 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Picks from the other log would be hidden but still added, so they go.
+  const chooseTarget = (next: Horizon) => {
+    setTarget(next);
+    setPicked([]);
+  };
+
   const togglePick = (id: string) => {
     setPicked(ids =>
       ids.includes(id) ? ids.filter(other => other !== id) : [...ids, id],
@@ -83,6 +95,16 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
     );
     onClose(summarize(result), result.ok && result.didntFit.length === 0);
   };
+
+  const log = TARGETS.find(option => option.value === target);
+  const shown = todos.filter(
+    todo => !todo.done && bucketFor(todo) === log?.bucket,
+  );
+
+  const allOnPage =
+    phase.kind === 'picking' &&
+    shown.length > 0 &&
+    shown.every(todo => phase.onPage.includes(todo.id));
 
   const renderBody = () => {
     if (phase.kind === 'checking' || phase.kind === 'writing') {
@@ -103,13 +125,11 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
       );
     }
 
-    const sections = groupByBucket(todos);
     const today = todayKey();
-    const period = TARGETS.find(option => option.value === target)?.period;
     return (
       <>
         <View style={styles.targetArea}>
-          <Text style={styles.heading}>Import to page:</Text>
+          <Text style={styles.heading}>Add to</Text>
           <View style={styles.targetRow}>
             {TARGETS.map(option => {
               const selected = option.value === target;
@@ -117,7 +137,7 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
                 <Pressable
                   key={option.value}
                   style={[styles.targetButton, selected && styles.filled]}
-                  onPress={() => setTarget(option.value)}
+                  onPress={() => chooseTarget(option.value)}
                   accessibilityRole="button"
                   accessibilityState={{selected}}>
                   <Text
@@ -131,73 +151,49 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
           {/* <Text style={styles.hint}>
             Their boxes on other pages stay. Ticking one ticks them all.
           </Text> */}
-          <Text style={styles.hint}>
-            Already in this list from an earlier {period}? It migrates: the old
-            box becomes &gt;.
-          </Text>
+          {/* <Text style={styles.hint}>
+            Already in this list from an earlier {chosen?.period}? It migrates:
+            the old box becomes &gt;.
+          </Text> */}
         </View>
 
         <ScrollView style={styles.list}>
-          {sections.map(section => (
-            <View key={section.title}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.data.map(todo => {
-                if (phase.onPage.includes(todo.id)) {
-                  return (
-                    <View key={todo.id} style={styles.row}>
-                      <Text style={[styles.rowText, styles.onPage]}>
-                        {todo.text} · already on this page
-                      </Text>
-                    </View>
-                  );
-                }
-                const order = picked.indexOf(todo.id);
-                const migrates =
-                  order >= 0 && importKind(todo, target, today) === 'migrate';
-                return (
-                  <Pressable
-                    key={todo.id}
-                    style={styles.row}
-                    onPress={() => togglePick(todo.id)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{checked: order >= 0}}>
-                    <Checkbox checked={order >= 0} />
-                    <View style={styles.rowBody}>
-                      <Text style={styles.bodyText}>{todo.text}</Text>
-                      {migrates && (
-                        <Text style={styles.migrates}>
-                          Migrates: the old box becomes &gt;
-                        </Text>
-                      )}
-                    </View>
-                    {/* Its place on the page: picked first = written first. */}
-                    {order >= 0 && (
-                      <Text style={styles.order}>{order + 1}</Text>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
+          {shown.length === 0 && (
+            <Text style={styles.empty}>No open todos in this log.</Text>
+          )}
+          {shown.map(todo => {
+            if (phase.onPage.includes(todo.id)) {
+              return (
+                <View key={todo.id} style={styles.row}>
+                  <View style={[styles.pickMark, styles.pickMarkOff]} />
+                  <Text style={styles.rowText}>{todo.text}</Text>
+                  <Text style={styles.onPage}>already on this page</Text>
+                </View>
+              );
+            }
+            const order = picked.indexOf(todo.id);
+            const migrates =
+              order >= 0 && importKind(todo, target, today) === 'migrate';
+            return (
+              <Pressable
+                key={todo.id}
+                style={styles.row}
+                onPress={() => togglePick(todo.id)}
+                accessibilityRole="checkbox"
+                accessibilityState={{checked: order >= 0}}>
+                <PickMark order={order} />
+                <View style={styles.rowBody}>
+                  <Text style={styles.bodyText}>{todo.text}</Text>
+                  {migrates && (
+                    <Text style={styles.migrates}>
+                      Migrates: the old box becomes &gt;
+                    </Text>
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
         </ScrollView>
-
-        <View style={styles.footer}>
-          <Pressable
-            style={[styles.addButton, picked.length > 0 && styles.filled]}
-            onPress={add}
-            disabled={picked.length === 0}
-            accessibilityRole="button">
-            <Text
-              style={[
-                styles.buttonText,
-                picked.length > 0 && styles.whiteText,
-              ]}>
-              {picked.length === 0
-                ? 'Pick the todos to add'
-                : `Add ${picked.length} to page`}
-            </Text>
-          </Pressable>
-        </View>
       </>
     );
   };
@@ -206,14 +202,55 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
     <View style={styles.container}>
       {/* Same height as the header it replaces, so nothing jumps. */}
       <View style={styles.topBar}>
-        <Text style={styles.title}>Add to page</Text>
-        {phase.kind !== 'writing' && (
-          <Pressable style={styles.cancel} onPress={() => onClose('', true)}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
-        )}
+        <Text style={styles.title}>Which page are you on?</Text>
       </View>
       {renderBody()}
+
+      {/* Cancel is there whenever it can be, also if reading the page failed;
+          Add only once there's something to pick. Hidden while writing. */}
+      {phase.kind !== 'writing' && (
+        <View style={styles.footer}>
+          <Pressable
+            style={[styles.footerButton, styles.cancelButton]}
+            onPress={() => onClose('', true)}
+            accessibilityRole="button">
+            <Text style={styles.buttonText}>Cancel</Text>
+          </Pressable>
+          {phase.kind === 'picking' && (
+            <Pressable
+              style={[
+                styles.footerButton,
+                styles.filled,
+                allOnPage && styles.buttonOff,
+              ]}
+              onPress={add}
+              disabled={picked.length === 0}
+              accessibilityRole="button"
+              accessibilityState={{disabled: picked.length === 0}}>
+              <Text style={[styles.buttonText, styles.whiteText]}>
+                {allOnPage
+                  ? `All ${log?.bucket} actions are already on this page`
+                  : picked.length === 0
+                  ? `Pick actions to add to the ${log?.label.toLowerCase()}`
+                  : `Add ${picked.length} to the ${log?.label.toLowerCase()}`}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Round, not the list's square box, so picking doesn't look like ticking a
+ * todo done. Picked, it's filled black with its place on the page: picked
+ * first = written first. `order` is -1 when not picked.
+ */
+function PickMark({order}: {order: number}): React.JSX.Element {
+  return (
+    <View style={[styles.pickMark, order >= 0 && styles.filled]}>
+      {order >= 0 && <Text style={styles.pickNumber}>{order + 1}</Text>}
     </View>
   );
 }
@@ -250,6 +287,12 @@ function summarize(result: ImportResult): string {
   return parts.join(' ');
 }
 
+// Rounded, but only a little: big radii look blurry on e-ink.
+const BUTTON_RADIUS = 8;
+// A little bigger than the list's 24 px box, to fit a two-digit number.
+const PICK_SIZE = 30;
+const GREY = '#656464';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -267,15 +310,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#000000',
-  },
-  cancel: {
-    position: 'absolute',
-    right: 16,
-    padding: 8,
-  },
-  cancelText: {
-    fontSize: 16,
     color: '#000000',
   },
   centered: {
@@ -315,6 +349,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 2,
     borderColor: '#000000',
+    borderRadius: BUTTON_RADIUS,
   },
   // Chosen = filled black, like the editor's buttons: no colour needed.
   filled: {
@@ -337,14 +372,11 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
-  sectionTitle: {
-    marginTop: 18,
+  empty: {
+    marginTop: 24,
     marginHorizontal: 24,
-    paddingBottom: 4,
-    borderBottomWidth: 2,
-    borderBottomColor: '#000000',
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontStyle: 'italic',
     color: '#000000',
   },
   row: {
@@ -372,25 +404,58 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: '#000000',
   },
-  // Not pickable: italic, and no box in front.
-  onPage: {
-    fontStyle: 'italic',
+  // Not pickable: a grey circle, and the reason at the row's right end.
+  // Grey is a try-out on e-ink; it doesn't carry the meaning alone.
+  pickMarkOff: {
+    borderColor: GREY,
+    backgroundColor: GREY,
   },
-  order: {
+  onPage: {
     marginLeft: 12,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 15,
+    fontStyle: 'italic',
     color: '#000000',
   },
+  // borderRadius at half the size makes a circle. The border stays when
+  // filled, so it keeps its size.
+  pickMark: {
+    width: PICK_SIZE,
+    height: PICK_SIZE,
+    marginRight: 16,
+    borderRadius: PICK_SIZE / 2,
+    borderWidth: 2,
+    borderColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
   footer: {
+    flexDirection: 'row',
+    gap: 12,
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#000000',
   },
-  addButton: {
+  // Cancel takes its text's width; Add fills the rest of the row.
+  footerButton: {
+    flexGrow: 1,
     alignItems: 'center',
     paddingVertical: 14,
+    paddingHorizontal: 20,
     borderWidth: 2,
     borderColor: '#000000',
+    borderRadius: BUTTON_RADIUS,
+  },
+  cancelButton: {
+    flexGrow: 0,
+  },
+
+  buttonOff: {
+    backgroundColor: GREY,
+    borderColor: GREY,
   },
 });
