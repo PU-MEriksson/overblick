@@ -22,6 +22,10 @@ import type {Horizon} from './src/types';
 // How long the notice line under the header stays before it clears itself.
 const NOTICE_MS = 4000;
 
+// The sidebar buttons registered in index.js.
+const OPEN_BUTTON_ID = 100;
+const ADD_TO_PAGE_BUTTON_ID = 400;
+
 /**
  * Plugin View
  * Shows the list of handwriting captured via lasso selections.
@@ -78,14 +82,33 @@ function App(): React.JSX.Element {
   // Whether the "Add to page" screen is showing instead of the list.
   const [importOpen, setImportOpen] = useState(false);
 
-  const openImport = () => {
-    setNotice('');
-    setImportOpen(true);
-  };
+  // Which sidebar button opened the plugin decides the screen. Registered
+  // once, when the app starts; the press that opened the view still arrives,
+  // because the library hands a new listener the last second's press.
+  useEffect(() => {
+    const subscription = PluginManager.registerButtonListener({
+      onButtonPress: event => {
+        if (event.id === ADD_TO_PAGE_BUTTON_ID) {
+          setNotice('');
+          setSelectedId(null);
+          setImportOpen(true);
+        } else if (event.id === OPEN_BUTTON_ID) {
+          setImportOpen(false);
+        }
+      },
+    });
+    return () => subscription.remove();
+  }, []);
 
-  const closeImport = (summary: string) => {
+  // Back to the note when the screen's work is done, so you're where you
+  // started; otherwise to the list, showing what went wrong.
+  const closeImport = (summary: string, backToNote: boolean) => {
     setImportOpen(false);
-    setNotice(summary);
+    if (backToNote) {
+      PluginManager.closePluginView();
+    } else {
+      setNotice(summary);
+    }
   };
 
   const handleClose = () => {
@@ -191,7 +214,7 @@ function App(): React.JSX.Element {
           onToPage={toPageSelected}
         />
       ) : (
-        <Header onClose={handleClose} onAddToPage={openImport} />
+        <Header onClose={handleClose} />
       )}
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <ViewTabs view={view} onChange={changeView} />

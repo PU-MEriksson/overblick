@@ -23,7 +23,15 @@ if (!__DEV__) {
 
 PluginManager.registerButton(1, ['NOTE', 'DOC'], {
   id: 100,
-  name: 'Överblick',
+  name: 'Open Överblick',
+  icon: Image.resolveAssetSource(require('./assets/mountain.png')).uri,
+  showType: 1,
+});
+
+// Opens straight into the Add to page screen (App.tsx), for the page that's open.
+PluginManager.registerButton(1, ['NOTE', 'DOC'], {
+  id: 400,
+  name: 'Import from Överblick',
   icon: Image.resolveAssetSource(require('./assets/mountain.png')).uri,
   showType: 1,
 });

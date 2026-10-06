@@ -558,6 +558,19 @@ Registered with `PluginManager.registerEventListener('event_pen_up', 1, {onMsg})
 - `index.js` therefore only calls `startBoxTaps()` when `!__DEV__`. Tapping boxes can only be
   tested on-device anyway.
 
+## Buttons: several sidebar buttons, told apart by `id` (from docs + source, 2026-10-06)
+
+- `registerButton(1, …)` is the sidebar/toolbar button. A plugin can register several; the
+  `PluginButton` docs say `showType: 1` opens the plugin view on press, `0` doesn't.
+- `registerButtonListener` gets every press; dispatch on `event.id`. Unlike event and motion
+  listeners, button listeners are numbered with a counter (`buttonEventSubIdCount++` in
+  `src/PluginManager.ts`), so registering more than one is safe.
+- **A late listener still gets the press:** the library keeps the last press for 1 s and hands
+  it to any listener registered in that time. That's how a listener in a component mounted by
+  the press itself (the lasso button, the Add to page button) still hears it.
+- `PluginManager.closePluginView()` closes the view (docs: "closes the currently shown plugin UI").
+- Not yet confirmed on-device: two sidebar buttons side by side (id 100 and 400).
+
 ## The native build needs JDK 21 — Android Studio's bundled JDK is too new
 
 - `./buildPlugin.sh` only invokes Gradle when a native module is present, so this doesn't bite

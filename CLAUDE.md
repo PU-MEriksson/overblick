@@ -123,10 +123,12 @@ All of this works on-device. Todos persist across restarts and plugin reinstalls
   handwriting at the usual left edge. Box and text are two elements, moved together with the
   lasso. The new box is linked: ticking any of a todo's boxes ticks them all. A todo whose box
   is still on that page isn't added twice.
-- **Add to page screen** *(confirmed on-device 2026-10-05)*: header → Add to page. Pick todos
+- **Add to page screen** *(confirmed on-device 2026-10-05; opened from the note's sidebar button
+  since 2026-10-06, not yet tried)*: the note's sidebar → Add to page (button id `400`). When
+  it's done it closes and you're back in the note; if something failed or didn't fit, it shows
+  the list with what happened. Pick todos
   (written in the order picked), choose Plan as Today / This week / This month (sets their
-  horizon), Add. Todos already on the page can't be picked. Shows each step while it works,
-  then a summary under the header that clears after 4 s. The UI is a first version; Malin is
+  horizon), Add. Todos already on the page can't be picked. Shows each step while it works. The UI is a first version; Malin is
   trying it out before deciding how it should feel.
 - **Time horizon:** `horizon` (`'day' | 'week' | 'month' | 'future'`, `null` = Inbox) plus
   `plannedOn` (local `'YYYY-MM-DD'`, stamped only when the horizon changes).

@@ -15,8 +15,9 @@ import type {ImportResult} from '../note/importTodos';
 
 type Props = {
   todos: TodoItem[];
-  // Back to the list, with what happened ('' if nothing was tried).
-  onClose: (summary: string) => void;
+  // Done: what happened ('' if nothing was tried), and whether it all went
+  // well, so it's fine to go straight back to the note.
+  onClose: (summary: string, backToNote: boolean) => void;
 };
 
 // What adding to a page plans the todos as. Bigger lists (future log) aren't
@@ -80,7 +81,7 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
     const result = await importTodos(chosen, target, step =>
       setPhase({kind: 'writing', step}),
     );
-    onClose(summarize(result));
+    onClose(summarize(result), result.ok && result.didntFit.length === 0);
   };
 
   const renderBody = () => {
@@ -108,7 +109,7 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
     return (
       <>
         <View style={styles.targetArea}>
-          <Text style={styles.heading}>PLAN AS</Text>
+          <Text style={styles.heading}>Import to page:</Text>
           <View style={styles.targetRow}>
             {TARGETS.map(option => {
               const selected = option.value === target;
@@ -127,12 +128,12 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
               );
             })}
           </View>
-          <Text style={styles.hint}>
+          {/* <Text style={styles.hint}>
             Their boxes on other pages stay. Ticking one ticks them all.
-          </Text>
+          </Text> */}
           <Text style={styles.hint}>
-            Already in this list from an earlier {period}? It migrates: the
-            old box becomes &gt;.
+            Already in this list from an earlier {period}? It migrates: the old
+            box becomes &gt;.
           </Text>
         </View>
 
@@ -207,7 +208,7 @@ export function ImportScreen({todos, onClose}: Props): React.JSX.Element {
       <View style={styles.topBar}>
         <Text style={styles.title}>Add to page</Text>
         {phase.kind !== 'writing' && (
-          <Pressable style={styles.cancel} onPress={() => onClose('')}>
+          <Pressable style={styles.cancel} onPress={() => onClose('', true)}>
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
         )}
