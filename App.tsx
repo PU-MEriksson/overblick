@@ -14,7 +14,8 @@ import {Header} from './src/components/header';
 import {ActionBar} from './src/components/ActionBar';
 import {TodoEditor} from './src/components/TodoEditor';
 import {ImportScreen} from './src/components/ImportScreen';
-import {ViewTabs} from './src/components/ViewTabs';
+import {Sidebar} from './src/components/Sidebar';
+import {VIEWS} from './src/todos/horizon';
 import type {View as ListView} from './src/todos/horizon';
 import {importTodos} from './src/note/importTodos';
 import type {Horizon} from './src/types';
@@ -51,6 +52,12 @@ function App(): React.JSX.Element {
   // Which view the list shows. Starts on Today each time the plugin opens:
   // the daily page is where the day's work happens.
   const [view, setView] = useState<ListView>('today');
+
+  // Whether the sidebar shows. Lives here, not in Sidebar, because the
+  // header's ☰ button changes it and the sidebar reads it.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // With the sidebar hidden, the header names the view so you know where you are.
+  const viewLabel = VIEWS.find(option => option.view === view)?.label ?? '';
 
   // A selected todo may not be in the next view, so switching clears it.
   const changeView = (next: ListView) => {
@@ -214,13 +221,25 @@ function App(): React.JSX.Element {
           onToPage={toPageSelected}
         />
       ) : (
-        <Header onClose={handleClose} />
+        <Header
+          onClose={handleClose}
+          onMenu={() => setSidebarOpen(!sidebarOpen)}
+          menuLabel={sidebarOpen ? '' : viewLabel}
+        />
       )}
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      <ViewTabs view={view} onChange={changeView} />
+      {/* <ViewTabs view={view} onChange={changeView} />
 
       {notice !== '' && <Text style={styles.notice}>{notice}</Text>}
-      {renderBody()}
+      {renderBody()} */}
+
+      <View style={styles.main}>
+        {sidebarOpen && <Sidebar view={view} onChange={changeView} />}
+        <View style={styles.body}>
+          {notice !== '' && <Text style={styles.notice}>{notice}</Text>}
+          {renderBody()}
+        </View>
+      </View>
 
       {/* Only mounted while editing; unmounting throws the draft away. */}
       {editingTodo !== null && (
@@ -259,6 +278,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     color: '#000000',
+  },
+  main: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  body: {
+    // Takes whatever width the sidebar leaves.
+    flex: 1,
   },
 });
 
