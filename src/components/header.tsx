@@ -24,8 +24,8 @@ export function Header({
   icon = mountainIcon,
   onClose,
   onMenu,
-  menuLabel = '',
-}: Props): React.JSX.Element {
+}: //menuLabel = '',
+Props): React.JSX.Element {
   return (
     <View style={styles.header}>
       {onMenu ? (
@@ -34,9 +34,9 @@ export function Header({
           onPress={onMenu}
           accessibilityLabel="Show or hide views">
           <Text style={styles.menuIcon}>☰</Text>
-          {menuLabel !== '' && (
+          {/* {menuLabel !== '' && (
             <Text style={styles.menuLabel}>{menuLabel}</Text>
-          )}
+          )} */}
         </Pressable>
       ) : null}
       <View style={styles.titleContainer}>

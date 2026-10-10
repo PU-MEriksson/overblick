@@ -7,29 +7,51 @@ type Props = {
   onChange: (view: ListView) => void;
 };
 
+type Option = (typeof VIEWS)[number];
+
+// Four groups: Inbox (to sort), Upcoming (the overview), the time horizons
+// (the journal's logs), and the Logbook (done).
+const inbox = VIEWS.filter(option => option.view === 'inbox');
+const upcoming = VIEWS.filter(option => option.view === 'upcoming');
+const logbook = VIEWS.filter(option => option.view === 'logbook');
+const timeViews = VIEWS.filter(
+  option =>
+    option.view !== 'inbox' &&
+    option.view !== 'upcoming' &&
+    option.view !== 'logbook',
+);
+
 /**
  * The views, down the left side. Shown and hidden by the header's ☰ button.
  * The chosen view is filled black: no colour needed.
  */
 export function Sidebar({view, onChange}: Props): React.JSX.Element {
+  const renderItem = (option: Option) => {
+    const selected = option.view === view;
+    return (
+      <Pressable
+        key={option.view}
+        style={[styles.item, selected && styles.itemSelected]}
+        onPress={() => onChange(option.view)}
+        accessibilityRole="tab"
+        accessibilityState={{selected}}>
+        <Text style={[styles.itemText, selected && styles.itemTextSelected]}>
+          {option.label}
+        </Text>
+      </Pressable>
+    );
+  };
+
   return (
     <View style={styles.sidebar}>
-      {VIEWS.map(option => {
-        const selected = option.view === view;
-        return (
-          <Pressable
-            key={option.view}
-            style={[styles.item, selected && styles.itemSelected]}
-            onPress={() => onChange(option.view)}
-            accessibilityRole="tab"
-            accessibilityState={{selected}}>
-            <Text
-              style={[styles.itemText, selected && styles.itemTextSelected]}>
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {inbox.map(renderItem)}
+      <View style={styles.divider} />
+      {upcoming.map(renderItem)}
+      <View style={styles.divider} />
+      {timeViews.map(renderItem)}
+      {/* Takes the leftover height, pushing the Logbook to the bottom. */}
+      <View style={styles.spacer} />
+      {logbook.map(renderItem)}
     </View>
   );
 }
@@ -54,5 +76,14 @@ const styles = StyleSheet.create({
   },
   itemTextSelected: {
     color: '#ffffff',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#000000',
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
+  spacer: {
+    flex: 1,
   },
 });

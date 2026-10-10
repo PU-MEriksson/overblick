@@ -95,11 +95,11 @@ const VIEW_BUCKETS: Record<Bucket, Bucket[]> = {
 
 export const VIEWS: {view: View; label: string}[] = [
   {view: 'inbox', label: 'Inbox'},
+  {view: 'upcoming', label: 'Upcoming'},
   {view: 'today', label: 'Today'},
   {view: 'week', label: 'Week'},
   {view: 'month', label: 'Month'},
   {view: 'future', label: 'Future'},
-  {view: 'upcoming', label: 'Upcoming'},
   {view: 'logbook', label: 'Logbook'},
 ];
 

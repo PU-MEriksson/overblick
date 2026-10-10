@@ -49,13 +49,14 @@ function App(): React.JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedTodo = todos.find(todo => todo.id === selectedId) ?? null;
 
-  // Which view the list shows. Starts on Today each time the plugin opens:
-  // the daily page is where the day's work happens.
-  const [view, setView] = useState<ListView>('today');
+  // Which view the list shows. Starts on Upcoming each time the plugin opens:
+  // everything open, each todo once, so nothing gets lost.
+  const [view, setView] = useState<ListView>('upcoming');
 
   // Whether the sidebar shows. Lives here, not in Sidebar, because the
   // header's ☰ button changes it and the sidebar reads it.
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Starts hidden: the list gets the full width, the header names the view.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // With the sidebar hidden, the header names the view so you know where you are.
   const viewLabel = VIEWS.find(option => option.view === view)?.label ?? '';
 
